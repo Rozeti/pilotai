@@ -31,7 +31,10 @@ import {
   Bell,
   LogOut,
   Settings,
-  Calendar, // ADICIONADO
+  Calendar,
+  CreditCard, // ADICIONADO
+  ClipboardList, // ADICIONADO
+  LifeBuoy, // ADICIONADO
 } from 'lucide-react-native';
 
 // === CORES ===
@@ -70,6 +73,15 @@ const MOCK_VEHICLE_DATA = {
   color: 'Prata',
 };
 
+// === NOVO MOCK DE PAGAMENTO ===
+const MOCK_PAYMENT_DATA = {
+  savedCard: {
+    last4: '1234',
+    brand: 'Visa',
+  },
+  balance: 'R$ 50,00',
+};
+
 const MOCK_FAVORITES = [
   { id: '1', name: 'Casa', address: 'Rua das Flores, 123', icon: Home },
   { id: '2', name: 'Trabalho', address: 'Av. Paulista, 1000', icon: Briefcase },
@@ -88,6 +100,10 @@ export default function PassengerProfileScreen() {
   const [showEditModal, setShowEditModal] = useState(false);
   const [showVehicleModal, setShowVehicleModal] = useState(false);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
+  
+  // === NOVOS MODAIS ===
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [showDocumentsModal, setShowDocumentsModal] = useState(false);
 
   const [editedData, setEditedData] = useState(MOCK_USER_DATA);
   const [editedVehicle, setEditedVehicle] = useState(MOCK_VEHICLE_DATA);
@@ -98,12 +114,21 @@ export default function PassengerProfileScreen() {
   // === SALVAR ===
   const handleSaveProfile = () => {
     console.log('Salvando perfil:', editedData);
+    MOCK_USER_DATA.name = editedData.name;
+    MOCK_USER_DATA.email = editedData.email;
+    MOCK_USER_DATA.phone = editedData.phone;
+    MOCK_USER_DATA.address = editedData.address;
     setShowEditModal(false);
     Alert.alert('Sucesso', 'Perfil atualizado com sucesso!');
   };
 
   const handleSaveVehicle = () => {
     console.log('Salvando veículo:', editedVehicle);
+    MOCK_VEHICLE_DATA.plate = editedVehicle.plate;
+    MOCK_VEHICLE_DATA.brand = editedVehicle.brand;
+    MOCK_VEHICLE_DATA.model = editedVehicle.model;
+    MOCK_VEHICLE_DATA.year = editedVehicle.year;
+    MOCK_VEHICLE_DATA.color = editedVehicle.color;
     setShowVehicleModal(false);
     Alert.alert('Sucesso', 'Veículo atualizado com sucesso!');
   };
@@ -115,9 +140,270 @@ export default function PassengerProfileScreen() {
     ]);
   };
 
-  const openSettings = () => {
-    setShowSettingsModal(true);
-  };
+  // === FUNÇÃO RENDERIZADORA DE ITEM (PADRÃO) ===
+  const renderMenuItem = ({
+    icon: Icon,
+    title,
+    onPress,
+    color = COLORS.black,
+  }: {
+    icon: React.ElementType,
+    title: string,
+    onPress: () => void,
+    color?: string,
+  }) => (
+    <TouchableOpacity style={styles.menuItem} onPress={onPress} activeOpacity={0.7}>
+      <View style={styles.menuItemLeft}>
+        <View style={[styles.menuIconContainer, { backgroundColor: color + '15' }]}>
+          <Icon color={color} size={22} />
+        </View>
+        <Text style={styles.menuItemTitle}>{title}</Text>
+      </View>
+      <ChevronRight color={COLORS.darkGray} size={20} />
+    </TouchableOpacity>
+  );
+
+  // === MODAIS ===
+
+  const renderEditProfileModal = () => (
+    <Modal visible={showEditModal} animationType="slide" transparent onRequestClose={() => setShowEditModal(false)}>
+      <View style={styles.modalOverlay}>
+        <View style={styles.modalContent}>
+          <View style={styles.modalHeader}>
+            <Text style={styles.modalTitle}>Editar Perfil</Text>
+            <TouchableOpacity onPress={() => setShowEditModal(false)}>
+              <X color={COLORS.black} size={24} />
+            </TouchableOpacity>
+          </View>
+          <ScrollView style={styles.modalScroll}>
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>Nome Completo</Text>
+              <TextInput
+                style={styles.input}
+                value={editedData.name}
+                onChangeText={(t) => setEditedData({ ...editedData, name: t })}
+                placeholder="Seu nome completo"
+              />
+            </View>
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>E-mail</Text>
+              <TextInput
+                style={styles.input}
+                value={editedData.email}
+                onChangeText={(t) => setEditedData({ ...editedData, email: t })}
+                keyboardType="email-address"
+                placeholder="seu@email.com"
+              />
+            </View>
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>Telefone</Text>
+              <TextInput
+                style={styles.input}
+                value={editedData.phone}
+                onChangeText={(t) => setEditedData({ ...editedData, phone: t })}
+                keyboardType="phone-pad"
+                placeholder="(00) 00000-0000"
+              />
+            </View>
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>Endereço</Text>
+              <TextInput
+                style={[styles.input, styles.textArea]}
+                value={editedData.address}
+                onChangeText={(t) => setEditedData({ ...editedData, address: t })}
+                multiline
+                placeholder="Seu endereço completo"
+              />
+            </View>
+            <TouchableOpacity style={styles.saveButton} onPress={handleSaveProfile}>
+              <Save color={COLORS.white} size={20} />
+              <Text style={styles.saveButtonText}>Salvar Alterações</Text>
+            </TouchableOpacity>
+          </ScrollView>
+        </View>
+      </View>
+    </Modal>
+  );
+
+  const renderVehicleModal = () => (
+    <Modal visible={showVehicleModal} animationType="slide" transparent onRequestClose={() => setShowVehicleModal(false)}>
+      <View style={styles.modalOverlay}>
+        <View style={styles.modalContent}>
+          <View style={styles.modalHeader}>
+            <Text style={styles.modalTitle}>Editar Veículo</Text>
+            <TouchableOpacity onPress={() => setShowVehicleModal(false)}>
+              <X color={COLORS.black} size={24} />
+            </TouchableOpacity>
+          </View>
+          <ScrollView style={styles.modalScroll}>
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>Placa</Text>
+              <TextInput
+                style={styles.input}
+                value={editedVehicle.plate}
+                onChangeText={(t) => setEditedVehicle({ ...editedVehicle, plate: t })}
+                placeholder="ABC-1234"
+              />
+            </View>
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>Marca</Text>
+              <TextInput
+                style={styles.input}
+                value={editedVehicle.brand}
+                onChangeText={(t) => setEditedVehicle({ ...editedVehicle, brand: t })}
+                placeholder="Ex: Toyota, Honda, Fiat"
+              />
+            </View>
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>Modelo</Text>
+              <TextInput
+                style={styles.input}
+                value={editedVehicle.model}
+                onChangeText={(t) => setEditedVehicle({ ...editedVehicle, model: t })}
+                placeholder="Ex: Corolla, Civic, Uno"
+              />
+            </View>
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>Ano</Text>
+              <TextInput
+                style={styles.input}
+                value={editedVehicle.year}
+                onChangeText={(t) => setEditedVehicle({ ...editedVehicle, year: t })}
+                keyboardType="numeric"
+                placeholder="2020"
+              />
+            </View>
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>Cor</Text>
+              <TextInput
+                style={styles.input}
+                value={editedVehicle.color}
+                onChangeText={(t) => setEditedVehicle({ ...editedVehicle, color: t })}
+                placeholder="Ex: Preto, Branco, Prata"
+              />
+            </View>
+            <TouchableOpacity style={styles.saveButton} onPress={handleSaveVehicle}>
+              <Save color={COLORS.white} size={20} />
+              <Text style={styles.saveButtonText}>Salvar Veículo</Text>
+            </TouchableOpacity>
+          </ScrollView>
+        </View>
+      </View>
+    </Modal>
+  );
+
+  const renderSettingsModal = () => (
+    <Modal visible={showSettingsModal} animationType="slide" transparent onRequestClose={() => setShowSettingsModal(false)}>
+      <View style={styles.modalOverlay}>
+        <View style={styles.modalContent}>
+          <View style={styles.modalHeader}>
+            <Text style={styles.modalTitle}>Configurações</Text>
+            <TouchableOpacity onPress={() => setShowSettingsModal(false)}>
+              <X color={COLORS.black} size={24} />
+            </TouchableOpacity>
+          </View>
+          <ScrollView style={styles.modalScroll}>
+            <View style={styles.settingItem}>
+              <View style={styles.settingLeft}>
+                <Bell color={COLORS.warning} size={22} />
+                <Text style={styles.settingTitle}>Notificações</Text>
+              </View>
+              <Switch 
+                value={notificationsEnabled} 
+                onValueChange={setNotificationsEnabled} 
+                trackColor={{ false: COLORS.mediumGray, true: COLORS.primary }}
+              />
+            </View>
+            <View style={styles.settingItem}>
+              <View style={styles.settingLeft}>
+                <MapPin color={COLORS.success} size={22} />
+                <Text style={styles.settingTitle}>Localização</Text>
+              </View>
+              <Switch 
+                value={locationEnabled} 
+                onValueChange={setLocationEnabled} 
+                trackColor={{ false: COLORS.mediumGray, true: COLORS.primary }}
+              />
+            </View>
+          </ScrollView>
+        </View>
+      </View>
+    </Modal>
+  );
+
+  const renderPaymentModal = () => (
+    <Modal visible={showPaymentModal} animationType="slide" transparent onRequestClose={() => setShowPaymentModal(false)}>
+      <View style={styles.modalOverlay}>
+        <View style={styles.modalContent}>
+          <View style={styles.modalHeader}>
+            <Text style={styles.modalTitle}>Formas de Pagamento</Text>
+            <TouchableOpacity onPress={() => setShowPaymentModal(false)}>
+              <X color={COLORS.black} size={24} />
+            </TouchableOpacity>
+          </View>
+          <ScrollView style={styles.modalScroll}>
+            <View style={styles.infoItem}>
+              <CreditCard color={COLORS.primary} size={20} />
+              <View style={styles.infoText}>
+                <Text style={styles.infoLabel}>{MOCK_PAYMENT_DATA.savedCard.brand}</Text>
+                {/* === CORREÇÃO 4 === */}
+                <Text style={styles.infoValue}>{`**** **** **** ${MOCK_PAYMENT_DATA.savedCard.last4}`}</Text>
+              </View>
+              <TouchableOpacity>
+                <Text style={styles.removeText}>Remover</Text>
+              </TouchableOpacity>
+            </View>
+            <TouchableOpacity style={styles.addPaymentButton}>
+              <Text style={styles.addPaymentButtonText}>+ Adicionar Novo Cartão</Text>
+            </TouchableOpacity>
+          </ScrollView>
+        </View>
+      </View>
+    </Modal>
+  );
+
+  const renderDocumentsModal = () => (
+    <Modal visible={showDocumentsModal} animationType="slide" transparent onRequestClose={() => setShowDocumentsModal(false)}>
+      <View style={styles.modalOverlay}>
+        <View style={styles.modalContent}>
+          <View style={styles.modalHeader}>
+            <Text style={styles.modalTitle}>Meus Documentos</Text>
+            <TouchableOpacity onPress={() => setShowDocumentsModal(false)}>
+              <X color={COLORS.black} size={24} />
+            </TouchableOpacity>
+          </View>
+          <ScrollView style={styles.modalScroll}>
+            <View style={styles.infoItem}>
+              <FileText color={COLORS.darkGray} size={20} />
+              <View style={styles.infoText}>
+                <Text style={styles.infoLabel}>CPF</Text>
+                <Text style={styles.infoValue}>{editedData.cpf}</Text>
+              </View>
+            </View>
+
+            <View style={styles.infoItem}>
+              <Calendar color={COLORS.darkGray} size={20} />
+              <View style={styles.infoText}>
+                <Text style={styles.infoLabel}>Nascimento</Text>
+                <Text style={styles.infoValue}>{editedData.birthdate}</Text>
+              </View>
+            </View>
+
+            <View style={styles.infoItem}>
+              <FileText color={COLORS.primary} size={20} />
+              <View style={styles.infoText}>
+                <Text style={styles.infoLabel}>CNH</Text>
+                <Text style={styles.infoValue}>{editedData.cnh}</Text>
+              </View>
+              <View style={[styles.cnhStatus, editedData.cnhStatus === 'válida' ? styles.cnhValid : styles.cnhInvalid]}>
+                <Text style={styles.cnhStatusText}>{editedData.cnhStatus}</Text>
+              </View>
+            </View>
+          </ScrollView>
+        </View>
+      </View>
+    </Modal>
+  );
 
   return (
     <>
@@ -166,22 +452,13 @@ export default function PassengerProfileScreen() {
               </View>
             </View>
 
-            {/* CNH */}
-            <View style={styles.cnhContainer}>
-              <FileText color={COLORS.primary} size={18} />
-              <Text style={styles.cnhText}>CNH: {editedData.cnh}</Text>
-              <View style={[styles.cnhStatus, editedData.cnhStatus === 'válida' ? styles.cnhValid : styles.cnhInvalid]}>
-                <Text style={styles.cnhStatusText}>{editedData.cnhStatus}</Text>
-              </View>
-            </View>
-
             <TouchableOpacity style={styles.editProfileButton} onPress={() => setShowEditModal(true)}>
               <Edit2 color={COLORS.primary} size={18} />
               <Text style={styles.editProfileButtonText}>Editar Perfil</Text>
             </TouchableOpacity>
           </View>
 
-          {/* MEUS DADOS */}
+          {/* MEUS DADOS (Mais limpo) */}
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Meus Dados</Text>
 
@@ -190,22 +467,6 @@ export default function PassengerProfileScreen() {
               <View style={styles.infoText}>
                 <Text style={styles.infoLabel}>Nome</Text>
                 <Text style={styles.infoValue}>{editedData.name}</Text>
-              </View>
-            </View>
-
-            <View style={styles.infoItem}>
-              <FileText color={COLORS.darkGray} size={20} />
-              <View style={styles.infoText}>
-                <Text style={styles.infoLabel}>CPF</Text>
-                <Text style={styles.infoValue}>{editedData.cpf}</Text>
-              </View>
-            </View>
-
-            <View style={styles.infoItem}>
-              <Calendar color={COLORS.darkGray} size={20} />
-              <View style={styles.infoText}>
-                <Text style={styles.infoLabel}>Nascimento</Text>
-                <Text style={styles.infoValue}>{editedData.birthdate}</Text>
               </View>
             </View>
 
@@ -226,7 +487,7 @@ export default function PassengerProfileScreen() {
             </View>
           </View>
 
-          {/* MEU VEÍCULO */}
+          {/* MEU VEÍCULO (Mantido) */}
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Meu Veículo</Text>
             <View style={styles.vehicleCard}>
@@ -237,10 +498,12 @@ export default function PassengerProfileScreen() {
                 </View>
               </View>
               <View style={styles.vehicleInfo}>
+                {/* === CORREÇÃO 1 === */}
                 <Text style={styles.vehicleModel}>
-                  {editedVehicle.brand} {editedVehicle.model} | {editedVehicle.year}
+                  {`${editedVehicle.brand} ${editedVehicle.model} | ${editedVehicle.year}`}
                 </Text>
-                <Text style={styles.vehicleColor}>Cor: {editedVehicle.color}</Text>
+                {/* === CORREÇÃO 2 === */}
+                <Text style={styles.vehicleColor}>{`Cor: ${editedVehicle.color}`}</Text>
               </View>
               <TouchableOpacity style={styles.editVehicleButton} onPress={() => setShowVehicleModal(true)}>
                 <Edit2 color={COLORS.primary} size={16} />
@@ -249,7 +512,7 @@ export default function PassengerProfileScreen() {
             </View>
           </View>
 
-          {/* FAVORITOS */}
+          {/* FAVORITOS (Mantido) */}
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Lugares Favoritos</Text>
             {MOCK_FAVORITES.map((fav) => (
@@ -268,7 +531,7 @@ export default function PassengerProfileScreen() {
             </TouchableOpacity>
           </View>
 
-          {/* HISTÓRICO */}
+          {/* HISTÓRICO (Mantido) */}
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
               <Text style={styles.sectionTitle}>Histórico Recente</Text>
@@ -283,7 +546,8 @@ export default function PassengerProfileScreen() {
                 </View>
                 <View style={styles.historyDetails}>
                   <Text style={styles.historyDate}>{ride.date}</Text>
-                  <Text style={styles.historyRoute}>{ride.from} → {ride.to}</Text>
+                  {/* === CORREÇÃO 3 === */}
+                  <Text style={styles.historyRoute}>{`${ride.from} → ${ride.to}`}</Text>
                 </View>
                 <View style={styles.historyRight}>
                   <Text style={styles.historyPrice}>{ride.price}</Text>
@@ -296,27 +560,44 @@ export default function PassengerProfileScreen() {
             ))}
           </View>
 
-          {/* MENU PRINCIPAL */}
+          {/* === MENU PRINCIPAL (NOVO PADRÃO) === */}
           <View style={styles.section}>
-            <TouchableOpacity style={styles.menuItem} onPress={openSettings}>
-              <View style={styles.menuItemLeft}>
-                <View style={[styles.menuIconContainer, { backgroundColor: COLORS.primary + '15' }]}>
-                  <Settings color={COLORS.primary} size={22} />
-                </View>
-                <Text style={styles.menuItemTitle}>Configurações</Text>
-              </View>
-              <ChevronRight color={COLORS.darkGray} size={20} />
-            </TouchableOpacity>
+            <Text style={styles.sectionTitle}>Menu Principal</Text>
+            
+            {renderMenuItem({
+              icon: CreditCard,
+              title: 'Formas de Pagamento',
+              onPress: () => setShowPaymentModal(true),
+              color: COLORS.success,
+            })}
 
-            <TouchableOpacity style={styles.menuItem}>
-              <View style={styles.menuItemLeft}>
-                <View style={[styles.menuIconContainer, { backgroundColor: COLORS.danger + '15' }]}>
-                  <Shield color={COLORS.danger} size={22} />
-                </View>
-                <Text style={styles.menuItemTitle}>Privacidade e Segurança</Text>
-              </View>
-              <ChevronRight color={COLORS.darkGray} size={20} />
-            </TouchableOpacity>
+            {renderMenuItem({
+              icon: ClipboardList,
+              title: 'Meus Documentos',
+              onPress: () => setShowDocumentsModal(true),
+              color: COLORS.primary,
+            })}
+            
+            {renderMenuItem({
+              icon: Settings,
+              title: 'Configurações',
+              onPress: () => setShowSettingsModal(true),
+              color: COLORS.darkGray,
+            })}
+
+            {renderMenuItem({
+              icon: Shield,
+              title: 'Privacidade e Segurança',
+              onPress: () => console.log('Privacidade'),
+              color: COLORS.danger,
+            })}
+
+            {renderMenuItem({
+              icon: LifeBuoy,
+              title: 'Ajuda e Suporte',
+              onPress: () => Alert.alert('Suporte', 'Central de ajuda em breve!'),
+              color: COLORS.warning,
+            })}
           </View>
 
           {/* SAIR */}
@@ -332,167 +613,12 @@ export default function PassengerProfileScreen() {
         </ScrollView>
       </SafeAreaView>
 
-      {/* MODAL: EDITAR PERFIL */}
-      <Modal visible={showEditModal} animationType="slide" transparent onRequestClose={() => setShowEditModal(false)}>
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Editar Perfil</Text>
-              <TouchableOpacity onPress={() => setShowEditModal(false)}>
-                <X color={COLORS.black} size={24} />
-              </TouchableOpacity>
-            </View>
-            <ScrollView style={styles.modalScroll}>
-              <View style={styles.inputGroup}>
-                <Text style={styles.inputLabel}>Nome Completo</Text>
-                <TextInput
-                  style={styles.input}
-                  value={editedData.name}
-                  onChangeText={(t) => setEditedData({ ...editedData, name: t })}
-                  placeholder="Seu nome completo"
-                />
-              </View>
-              <View style={styles.inputGroup}>
-                <Text style={styles.inputLabel}>E-mail</Text>
-                <TextInput
-                  style={styles.input}
-                  value={editedData.email}
-                  onChangeText={(t) => setEditedData({ ...editedData, email: t })}
-                  keyboardType="email-address"
-                  placeholder="seu@email.com"
-                />
-              </View>
-              <View style={styles.inputGroup}>
-                <Text style={styles.inputLabel}>Telefone</Text>
-                <TextInput
-                  style={styles.input}
-                  value={editedData.phone}
-                  onChangeText={(t) => setEditedData({ ...editedData, phone: t })}
-                  keyboardType="phone-pad"
-                  placeholder="(00) 00000-0000"
-                />
-              </View>
-              <View style={styles.inputGroup}>
-                <Text style={styles.inputLabel}>Endereço</Text>
-                <TextInput
-                  style={[styles.input, styles.textArea]}
-                  value={editedData.address}
-                  onChangeText={(t) => setEditedData({ ...editedData, address: t })}
-                  multiline
-                  placeholder="Seu endereço completo"
-                />
-              </View>
-              <TouchableOpacity style={styles.saveButton} onPress={handleSaveProfile}>
-                <Save color={COLORS.white} size={20} />
-                <Text style={styles.saveButtonText}>Salvar Alterações</Text>
-              </TouchableOpacity>
-            </ScrollView>
-          </View>
-        </View>
-      </Modal>
-
-      {/* MODAL: EDITAR VEÍCULO */}
-      <Modal visible={showVehicleModal} animationType="slide" transparent onRequestClose={() => setShowVehicleModal(false)}>
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Editar Veículo</Text>
-              <TouchableOpacity onPress={() => setShowVehicleModal(false)}>
-                <X color={COLORS.black} size={24} />
-              </TouchableOpacity>
-            </View>
-            <ScrollView style={styles.modalScroll}>
-              <View style={styles.inputGroup}>
-                <Text style={styles.inputLabel}>Placa</Text>
-                <TextInput
-                  style={styles.input}
-                  value={editedVehicle.plate}
-                  onChangeText={(t) => setEditedVehicle({ ...editedVehicle, plate: t })}
-                  placeholder="ABC-1234"
-                />
-              </View>
-              <View style={styles.inputGroup}>
-                <Text style={styles.inputLabel}>Marca</Text>
-                <TextInput
-                  style={styles.input}
-                  value={editedVehicle.brand}
-                  onChangeText={(t) => setEditedVehicle({ ...editedVehicle, brand: t })}
-                  placeholder="Ex: Toyota, Honda, Fiat"
-                />
-              </View>
-              <View style={styles.inputGroup}>
-                <Text style={styles.inputLabel}>Modelo</Text>
-                <TextInput
-                  style={styles.input}
-                  value={editedVehicle.model}
-                  onChangeText={(t) => setEditedVehicle({ ...editedVehicle, model: t })}
-                  placeholder="Ex: Corolla, Civic, Uno"
-                />
-              </View>
-              <View style={styles.inputGroup}>
-                <Text style={styles.inputLabel}>Ano</Text>
-                <TextInput
-                  style={styles.input}
-                  value={editedVehicle.year}
-                  onChangeText={(t) => setEditedVehicle({ ...editedVehicle, year: t })}
-                  keyboardType="numeric"
-                  placeholder="2020"
-                />
-              </View>
-              <View style={styles.inputGroup}>
-                <Text style={styles.inputLabel}>Cor</Text>
-                <TextInput
-                  style={styles.input}
-                  value={editedVehicle.color}
-                  onChangeText={(t) => setEditedVehicle({ ...editedVehicle, color: t })}
-                  placeholder="Ex: Preto, Branco, Prata"
-                />
-              </View>
-              <TouchableOpacity style={styles.saveButton} onPress={handleSaveVehicle}>
-                <Save color={COLORS.white} size={20} />
-                <Text style={styles.saveButtonText}>Salvar Veículo</Text>
-              </TouchableOpacity>
-            </ScrollView>
-          </View>
-        </View>
-      </Modal>
-
-      {/* MODAL: CONFIGURAÇÕES */}
-      <Modal visible={showSettingsModal} animationType="slide" transparent onRequestClose={() => setShowSettingsModal(false)}>
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Configurações</Text>
-              <TouchableOpacity onPress={() => setShowSettingsModal(false)}>
-                <X color={COLORS.black} size={24} />
-              </TouchableOpacity>
-            </View>
-            <ScrollView style={styles.modalScroll}>
-              <View style={styles.settingItem}>
-                <View style={styles.settingLeft}>
-                  <Bell color={COLORS.warning} size={22} />
-                  <Text style={styles.settingTitle}>Notificações</Text>
-                </View>
-                <Switch value={notificationsEnabled} onValueChange={setNotificationsEnabled} />
-              </View>
-              <View style={styles.settingItem}>
-                <View style={styles.settingLeft}>
-                  <MapPin color={COLORS.success} size={22} />
-                  <Text style={styles.settingTitle}>Localização</Text>
-                </View>
-                <Switch value={locationEnabled} onValueChange={setLocationEnabled} />
-              </View>
-              <TouchableOpacity style={styles.settingItem}>
-                <View style={styles.settingLeft}>
-                  <Shield color={COLORS.primary} size={22} />
-                  <Text style={styles.settingTitle}>Privacidade e Segurança</Text>
-                </View>
-                <ChevronRight color={COLORS.darkGray} size={20} />
-              </TouchableOpacity>
-            </ScrollView>
-          </View>
-        </View>
-      </Modal>
+      {/* MODAIS */}
+      {renderEditProfileModal()}
+      {renderVehicleModal()}
+      {renderSettingsModal()}
+      {renderPaymentModal()}
+      {renderDocumentsModal()}
     </>
   );
 }
@@ -740,4 +866,22 @@ const styles = StyleSheet.create({
   },
   settingLeft: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   settingTitle: { fontSize: 16, fontWeight: '600', color: COLORS.black },
+  
+  // === NOVOS ESTILOS: MODAL DE PAGAMENTO ===
+  removeText: {
+    color: COLORS.danger,
+    fontWeight: '600',
+  },
+  addPaymentButton: {
+    backgroundColor: COLORS.primary + '15',
+    paddingVertical: 14,
+    borderRadius: 12,
+    alignItems: 'center',
+    marginTop: 16,
+  },
+  addPaymentButtonText: {
+    color: COLORS.primary,
+    fontSize: 16,
+    fontWeight: '600',
+  },
 });

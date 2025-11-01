@@ -29,6 +29,16 @@ import {
   Heart,
   Home,
   Briefcase,
+  Settings,
+  FileText,
+  Calendar,
+  // Car, // REMOVIDO
+  DollarSign,
+  ClipboardList,
+  TrendingUp,
+  LifeBuoy,
+  Banknote,
+  CheckCircle2,
 } from 'lucide-react-native';
 
 // === CORES ===
@@ -44,7 +54,7 @@ const COLORS = {
   warning: '#FBBC05',
 };
 
-// === DADOS MOCK DO MOTORISTA ===
+// === DADOS MOCK ===
 const MOCK_DRIVER_DATA = {
   name: 'Carlos Oliveira',
   email: 'carlos.motorista@email.com',
@@ -55,8 +65,22 @@ const MOCK_DRIVER_DATA = {
   rating: 4.9,
   totalRides: 842,
   memberSince: 'Janeiro 2022',
-  license: 'CNH: 123456789',
+  license: '123456789',
   verified: true,
+};
+
+// MOCK_VEHICLE_DATA REMOVIDO
+
+const MOCK_WALLET_DATA = {
+  balance: 'R$ 287,50',
+  nextPayout: '05/11/2024',
+  bank: 'Banco X (Ag: 0001, C/C: 123456-7)',
+};
+
+const MOCK_DOCUMENTS_DATA = {
+  cnh: { status: 'Válida', expiry: '10/2026' },
+  // crlv removido
+  backgroundCheck: { status: 'Aprovado', date: '01/2024' },
 };
 
 const MOCK_FAVORITES = [
@@ -67,32 +91,34 @@ const MOCK_FAVORITES = [
 const MOCK_HISTORY = [
   { id: '1', date: '20/10/2024', from: 'Casa', to: 'Aeroporto', price: 'R$ 85,00', rating: 5 },
   { id: '2', date: '19/10/2024', from: 'Shopping', to: 'Casa', price: 'R$ 42,00', rating: 5 },
-  { id: '3', date: '18/10/2024', from: 'Trabalho', to: 'Casa', price: 'R$ 38,00', rating: 4 },
 ];
-
-type MenuItem = {
-  icon: React.ElementType;
-  title: string;
-  subtitle?: string;
-  onPress: () => void;
-  color?: string;
-  showChevron?: boolean;
-};
 
 export default function DriverProfileScreen() {
   const insets = useSafeAreaInsets();
 
   const [showEditModal, setShowEditModal] = useState(false);
+  const [showSettingsModal, setShowSettingsModal] = useState(false);
+  // showVehicleModal REMOVIDO
+  const [showWalletModal, setShowWalletModal] = useState(false);
+  const [showDocumentsModal, setShowDocumentsModal] = useState(false);
+
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
   const [locationEnabled, setLocationEnabled] = useState(true);
 
   const [editedData, setEditedData] = useState(MOCK_DRIVER_DATA);
+  // editedVehicle REMOVIDO
 
   const handleSaveProfile = () => {
     console.log('Salvando perfil do motorista:', editedData);
+    MOCK_DRIVER_DATA.name = editedData.name;
+    MOCK_DRIVER_DATA.email = editedData.email;
+    MOCK_DRIVER_DATA.phone = editedData.phone;
+    MOCK_DRIVER_DATA.address = editedData.address;
     setShowEditModal(false);
     Alert.alert('Sucesso', 'Perfil atualizado com sucesso!');
   };
+
+  // handleSaveVehicle REMOVIDO
 
   const handleLogout = () => {
     Alert.alert(
@@ -108,22 +134,22 @@ export default function DriverProfileScreen() {
   const renderMenuItem = ({
     icon: Icon,
     title,
-    subtitle,
     onPress,
     color = COLORS.black,
-    showChevron = true,
-  }: MenuItem) => (
+  }: {
+    icon: React.ElementType,
+    title: string,
+    onPress: () => void,
+    color?: string,
+  }) => (
     <TouchableOpacity style={styles.menuItem} onPress={onPress} activeOpacity={0.7}>
       <View style={styles.menuItemLeft}>
         <View style={[styles.menuIconContainer, { backgroundColor: color + '15' }]}>
           <Icon color={color} size={22} />
         </View>
-        <View style={styles.menuItemText}>
-          <Text style={styles.menuItemTitle}>{title}</Text>
-          {subtitle && <Text style={styles.menuItemSubtitle}>{subtitle}</Text>}
-        </View>
+        <Text style={styles.menuItemTitle}>{title}</Text>
       </View>
-      {showChevron && <ChevronRight color={COLORS.darkGray} size={20} />}
+      <ChevronRight color={COLORS.darkGray} size={20} />
     </TouchableOpacity>
   );
 
@@ -144,44 +170,35 @@ export default function DriverProfileScreen() {
                 style={styles.input}
                 value={editedData.name}
                 onChangeText={(text) => setEditedData({ ...editedData, name: text })}
-                placeholder="Seu nome completo"
               />
             </View>
-
             <View style={styles.inputGroup}>
               <Text style={styles.inputLabel}>E-mail</Text>
               <TextInput
                 style={styles.input}
                 value={editedData.email}
                 onChangeText={(text) => setEditedData({ ...editedData, email: text })}
-                placeholder="seu@email.com"
                 keyboardType="email-address"
               />
             </View>
-
             <View style={styles.inputGroup}>
               <Text style={styles.inputLabel}>Telefone</Text>
               <TextInput
                 style={styles.input}
                 value={editedData.phone}
                 onChangeText={(text) => setEditedData({ ...editedData, phone: text })}
-                placeholder="(00) 00000-0000"
                 keyboardType="phone-pad"
               />
             </View>
-
             <View style={styles.inputGroup}>
               <Text style={styles.inputLabel}>Endereço</Text>
               <TextInput
                 style={[styles.input, styles.textArea]}
                 value={editedData.address}
                 onChangeText={(text) => setEditedData({ ...editedData, address: text })}
-                placeholder="Seu endereço completo"
                 multiline
-                numberOfLines={3}
               />
             </View>
-
             <TouchableOpacity style={styles.saveButton} onPress={handleSaveProfile}>
               <Save color={COLORS.white} size={20} />
               <Text style={styles.saveButtonText}>Salvar Alterações</Text>
@@ -191,6 +208,129 @@ export default function DriverProfileScreen() {
       </View>
     </Modal>
   );
+
+  const renderSettingsModal = () => (
+    <Modal visible={showSettingsModal} animationType="slide" transparent onRequestClose={() => setShowSettingsModal(false)}>
+      <View style={styles.modalOverlay}>
+        <View style={styles.modalContent}>
+          <View style={styles.modalHeader}>
+            <Text style={styles.modalTitle}>Configurações</Text>
+            <TouchableOpacity onPress={() => setShowSettingsModal(false)}>
+              <X color={COLORS.black} size={24} />
+            </TouchableOpacity>
+          </View>
+          <ScrollView style={styles.modalScroll}>
+            <View style={styles.settingItem}>
+              <View style={styles.settingLeft}>
+                <Bell color={COLORS.warning} size={22} />
+                <Text style={styles.settingTitle}>Notificações</Text>
+              </View>
+              <Switch
+                value={notificationsEnabled}
+                onValueChange={setNotificationsEnabled}
+                trackColor={{ false: COLORS.mediumGray, true: COLORS.primary }}
+              />
+            </View>
+            <View style={styles.settingItem}>
+              <View style={styles.settingLeft}>
+                <MapPin color={COLORS.success} size={22} />
+                <Text style={styles.settingTitle}>Localização</Text>
+              </View>
+              <Switch
+                value={locationEnabled}
+                onValueChange={setLocationEnabled}
+                trackColor={{ false: COLORS.mediumGray, true: COLORS.primary }}
+              />
+            </View>
+          </ScrollView>
+        </View>
+      </View>
+    </Modal>
+  );
+
+  // renderVehicleModal REMOVIDO
+
+  const renderWalletModal = () => (
+    <Modal visible={showWalletModal} animationType="slide" transparent onRequestClose={() => setShowWalletModal(false)}>
+      <View style={styles.modalOverlay}>
+        <View style={styles.modalContent}>
+          <View style={styles.modalHeader}>
+            <Text style={styles.modalTitle}>Ganhos e Repasses</Text>
+            <TouchableOpacity onPress={() => setShowWalletModal(false)}>
+              <X color={COLORS.black} size={24} />
+            </TouchableOpacity>
+          </View>
+          <ScrollView style={styles.modalScroll}>
+            <View style={styles.walletBalanceCard}>
+              <Text style={styles.walletLabel}>Saldo Atual</Text>
+              <Text style={styles.walletBalance}>{MOCK_WALLET_DATA.balance}</Text>
+              <TouchableOpacity style={styles.walletPayoutButton}>
+                <Text style={styles.walletPayoutButtonText}>Solicitar Repasse</Text>
+              </TouchableOpacity>
+            </View>
+            
+            <View style={styles.infoItem}>
+              <Clock color={COLORS.primary} size={20} />
+              <View style={styles.infoText}>
+                <Text style={styles.infoLabel}>Próximo Repasse Programado</Text>
+                <Text style={styles.infoValue}>{MOCK_WALLET_DATA.nextPayout}</Text>
+              </View>
+            </View>
+            <View style={styles.infoItem}>
+              <Banknote color={COLORS.success} size={20} />
+              <View style={styles.infoText}>
+                <Text style={styles.infoLabel}>Conta Bancária</Text>
+                <Text style={styles.infoValue}>{MOCK_WALLET_DATA.bank}</Text>
+              </View>
+            </View>
+            
+          </ScrollView>
+        </View>
+      </View>
+    </Modal>
+  );
+
+  const renderDocumentsModal = () => (
+    <Modal visible={showDocumentsModal} animationType="slide" transparent onRequestClose={() => setShowDocumentsModal(false)}>
+      <View style={styles.modalOverlay}>
+        <View style={styles.modalContent}>
+          <View style={styles.modalHeader}>
+            <Text style={styles.modalTitle}>Meus Documentos</Text>
+            <TouchableOpacity onPress={() => setShowDocumentsModal(false)}>
+              <X color={COLORS.black} size={24} />
+            </TouchableOpacity>
+          </View>
+          <ScrollView style={styles.modalScroll}>
+            <TouchableOpacity style={styles.documentItem}>
+              <View style={styles.documentLeft}>
+                <FileText color={COLORS.primary} size={22} />
+                <View style={styles.infoText}>
+                  <Text style={styles.documentTitle}>CNH (Carteira de Motorista)</Text>
+                  <Text style={styles.documentStatusValid}>{`Status: ${MOCK_DOCUMENTS_DATA.cnh.status} (Vence ${MOCK_DOCUMENTS_DATA.cnh.expiry})`}</Text>
+                </View>
+              </View>
+              <ChevronRight color={COLORS.darkGray} size={20} />
+            </TouchableOpacity>
+            
+            {/* ITEM CRLV REMOVIDO */}
+
+            <TouchableOpacity style={styles.documentItem}>
+              <View style={styles.documentLeft}>
+                <Shield color={COLORS.success} size={22} />
+                <View style={styles.infoText}>
+                  <Text style={styles.documentTitle}>Atestado de Antecedentes</Text>
+                  <Text style={styles.documentStatusValid}>{`Status: ${MOCK_DOCUMENTS_DATA.backgroundCheck.status} (Válido desde ${MOCK_DOCUMENTS_DATA.backgroundCheck.date})`}</Text>
+                </View>
+              </View>
+              <ChevronRight color={COLORS.darkGray} size={20} />
+            </TouchableOpacity>
+
+          </ScrollView>
+        </View>
+      </View>
+    </Modal>
+  );
+
 
   return (
     <>
@@ -217,32 +357,31 @@ export default function DriverProfileScreen() {
               </TouchableOpacity>
             </View>
 
-            <Text style={styles.profileName}>{MOCK_DRIVER_DATA.name}</Text>
-            <Text style={styles.profileEmail}>{MOCK_DRIVER_DATA.email}</Text>
+            <Text style={styles.profileName}>{editedData.name}</Text>
+            <Text style={styles.profileEmail}>{editedData.email}</Text>
 
             <View style={styles.statsContainer}>
               <View style={styles.statItem}>
                 <Star color={COLORS.warning} size={24} fill={COLORS.warning} />
-                <Text style={styles.statValue}>{MOCK_DRIVER_DATA.rating}</Text>
+                <Text style={styles.statValue}>{editedData.rating}</Text>
                 <Text style={styles.statLabel}>Avaliação</Text>
               </View>
               <View style={styles.statDivider} />
               <View style={styles.statItem}>
                 <Briefcase color={COLORS.primary} size={24} />
-                <Text style={styles.statValue}>{MOCK_DRIVER_DATA.totalRides}</Text>
+                <Text style={styles.statValue}>{editedData.totalRides}</Text>
                 <Text style={styles.statLabel}>Corridas</Text>
               </View>
               <View style={styles.statDivider} />
               <View style={styles.statItem}>
                 <Clock color={COLORS.success} size={24} />
-                <Text style={styles.statValue}>{MOCK_DRIVER_DATA.memberSince}</Text>
+                <Text style={styles.statValue}>{editedData.memberSince}</Text>
                 <Text style={styles.statLabel}>Membro desde</Text>
               </View>
             </View>
 
-            {/* Selo de Verificação */}
             <View style={styles.verifiedBadge}>
-              <Shield color={COLORS.success} size={16} />
+              <CheckCircle2 color={COLORS.success} size={16} />
               <Text style={styles.verifiedText}>Motorista Verificado</Text>
             </View>
 
@@ -252,33 +391,38 @@ export default function DriverProfileScreen() {
             </TouchableOpacity>
           </View>
 
-          {/* SEÇÃO: MEUS DADOS */}
+          {/* SEÇÃO: MEUS DADOS (Mais enxuta) */}
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Meus Dados</Text>
-            {renderMenuItem({
-              icon: User,
-              title: 'Informações Pessoais',
-              subtitle: 'Nome, CPF, CNH',
-              onPress: () => setShowEditModal(true),
-              color: COLORS.primary,
-            })}
-            {renderMenuItem({
-              icon: Phone,
-              title: 'Telefone',
-              subtitle: MOCK_DRIVER_DATA.phone,
-              onPress: () => setShowEditModal(true),
-              color: COLORS.success,
-            })}
-            {renderMenuItem({
-              icon: MapPin,
-              title: 'Endereço',
-              subtitle: 'Rua das Acácias, 789 - Jardim Europa',
-              onPress: () => setShowEditModal(true),
-              color: COLORS.warning,
-            })}
-          </View>
 
-          {/* SEÇÃO: FAVORITOS */}
+            <View style={styles.infoItem}>
+              <User color={COLORS.primary} size={20} />
+              <View style={styles.infoText}>
+                <Text style={styles.infoLabel}>Nome</Text>
+                <Text style={styles.infoValue}>{editedData.name}</Text>
+              </View>
+            </View>
+
+            <View style={styles.infoItem}>
+              <Phone color={COLORS.success} size={20} />
+              <View style={styles.infoText}>
+                <Text style={styles.infoLabel}>Telefone</Text>
+                <Text style={styles.infoValue}>{editedData.phone}</Text>
+              </View>
+            </View>
+
+            <View style={styles.infoItem}>
+              <MapPin color={COLORS.warning} size={20} />
+              <View style={styles.infoText}>
+                <Text style={styles.infoLabel}>Endereço</Text>
+                <Text style={styles.infoValue}>{editedData.address}</Text>
+              </View>
+            </View>
+          </View>
+          
+          {/* SEÇÃO: MEU VEÍCULO (REMOVIDA) */}
+
+          {/* SEÇÃO: FAVORITOS (Mantida) */}
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Locais Frequentes</Text>
             {MOCK_FAVORITES.map((fav) => (
@@ -297,7 +441,7 @@ export default function DriverProfileScreen() {
             </TouchableOpacity>
           </View>
 
-          {/* SEÇÃO: HISTÓRICO RECENTE */}
+          {/* SEÇÃO: HISTÓRICO RECENTE (Mantida) */}
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
               <Text style={styles.sectionTitle}>Histórico Recente</Text>
@@ -312,7 +456,7 @@ export default function DriverProfileScreen() {
                 </View>
                 <View style={styles.historyDetails}>
                   <Text style={styles.historyDate}>{ride.date}</Text>
-                  <Text style={styles.historyRoute}>{ride.from} → {ride.to}</Text>
+                  <Text style={styles.historyRoute}>{`${ride.from} → ${ride.to}`}</Text>
                 </View>
                 <View style={styles.historyRight}>
                   <Text style={styles.historyPrice}>{ride.price}</Text>
@@ -325,44 +469,50 @@ export default function DriverProfileScreen() {
             ))}
           </View>
 
-          {/* SEÇÃO: CONFIGURAÇÕES */}
+          {/* SEÇÃO: MENU PRINCIPAL (Atualizada) */}
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Configurações</Text>
-            <View style={styles.menuItem}>
-              <View style={styles.menuItemLeft}>
-                <View style={[styles.menuIconContainer, { backgroundColor: COLORS.warning + '15' }]}>
-                  <Bell color={COLORS.warning} size={22} />
-                </View>
-                <Text style={styles.menuItemTitle}>Notificações</Text>
-              </View>
-              <Switch
-                value={notificationsEnabled}
-                onValueChange={setNotificationsEnabled}
-                trackColor={{ false: COLORS.mediumGray, true: COLORS.primary }}
-                thumbColor={notificationsEnabled ? COLORS.white : COLORS.white}
-              />
-            </View>
+            <Text style={styles.sectionTitle}>Menu Principal</Text>
+            
+            {renderMenuItem({
+              icon: DollarSign,
+              title: 'Ganhos e Repasses',
+              onPress: () => setShowWalletModal(true),
+              color: COLORS.success,
+            })}
 
-            <View style={styles.menuItem}>
-              <View style={styles.menuItemLeft}>
-                <View style={[styles.menuIconContainer, { backgroundColor: COLORS.success + '15' }]}>
-                  <MapPin color={COLORS.success} size={22} />
-                </View>
-                <Text style={styles.menuItemTitle}>Localização</Text>
-              </View>
-              <Switch
-                value={locationEnabled}
-                onValueChange={setLocationEnabled}
-                trackColor={{ false: COLORS.mediumGray, true: COLORS.primary }}
-                thumbColor={locationEnabled ? COLORS.white : COLORS.white}
-              />
-            </View>
+            {renderMenuItem({
+              icon: ClipboardList,
+              title: 'Meus Documentos',
+              onPress: () => setShowDocumentsModal(true),
+              color: COLORS.primary,
+            })}
+            
+            {renderMenuItem({
+              icon: TrendingUp,
+              title: 'Desempenho',
+              onPress: () => Alert.alert('Desempenho', 'Tela de desempenho em breve!'),
+              color: COLORS.primary,
+            })}
 
+            {renderMenuItem({
+              icon: Settings,
+              title: 'Configurações do App',
+              onPress: () => setShowSettingsModal(true),
+              color: COLORS.darkGray,
+            })}
+            
             {renderMenuItem({
               icon: Shield,
               title: 'Privacidade e Segurança',
               onPress: () => console.log('Privacidade'),
-              color: COLORS.primary,
+              color: COLORS.danger,
+            })}
+
+            {renderMenuItem({
+              icon: LifeBuoy,
+              title: 'Ajuda e Suporte',
+              onPress: () => Alert.alert('Suporte', 'Central de ajuda em breve!'),
+              color: COLORS.warning,
             })}
           </View>
 
@@ -382,6 +532,10 @@ export default function DriverProfileScreen() {
 
       {/* MODAIS */}
       {renderEditProfileModal()}
+      {renderSettingsModal()}
+      {/* renderVehicleModal() REMOVIDO */}
+      {renderWalletModal()}
+      {renderDocumentsModal()}
     </>
   );
 }
@@ -537,6 +691,19 @@ const styles = StyleSheet.create({
     color: COLORS.primary,
     fontWeight: '600',
   },
+  infoItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.lightGray,
+  },
+  infoText: { marginLeft: 16, flex: 1 },
+  infoLabel: { fontSize: 14, color: COLORS.darkGray },
+  infoValue: { fontSize: 16, fontWeight: '600', color: COLORS.black, marginTop: 2 },
+  
+  // ESTILOS DE VEÍCULO REMOVIDOS
+
   menuItem: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -750,5 +917,72 @@ const styles = StyleSheet.create({
     color: COLORS.white,
     fontSize: 16,
     fontWeight: '600',
+  },
+  settingItem: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.lightGray,
+  },
+  settingLeft: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  settingTitle: { fontSize: 16, fontWeight: '600', color: COLORS.black },
+  walletBalanceCard: {
+    backgroundColor: COLORS.primary,
+    borderRadius: 16,
+    padding: 20,
+    alignItems: 'center',
+    marginBottom: 24,
+  },
+  walletLabel: {
+    fontSize: 16,
+    color: COLORS.white + '90',
+  },
+  walletBalance: {
+    fontSize: 32,
+    fontWeight: 'bold',
+    color: COLORS.white,
+    marginVertical: 8,
+  },
+  walletPayoutButton: {
+    backgroundColor: COLORS.white,
+    paddingHorizontal: 24,
+    paddingVertical: 10,
+    borderRadius: 8,
+    marginTop: 8,
+  },
+  walletPayoutButtonText: {
+    color: COLORS.primary,
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  documentItem: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.lightGray,
+  },
+  documentLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  documentTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: COLORS.black,
+  },
+  documentStatusValid: {
+    fontSize: 14,
+    color: COLORS.success,
+    marginTop: 2,
+  },
+  documentStatusWarning: {
+    fontSize: 14,
+    color: COLORS.warning,
+    marginTop: 2,
   },
 });

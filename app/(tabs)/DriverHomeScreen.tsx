@@ -12,6 +12,11 @@ import {
   X,
   ArrowRight,
   AlertTriangle,
+  Filter,
+  History,
+  Settings,
+  LifeBuoy,
+  MicOff,
 } from 'lucide-react-native';
 import React, { useEffect, useRef, useState } from 'react';
 import {
@@ -25,11 +30,15 @@ import {
   Text,
   TouchableOpacity,
   View,
+  Animated,
+  Dimensions,
+  Switch,
+  TouchableWithoutFeedback,
+  TextInput,
 } from 'react-native';
 import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
 import MapViewDirections from 'react-native-maps-directions';
 
-// Cores do projeto
 const COLORS = {
   white: '#FFFFFF',
   lightGray: '#F5F5F5',
@@ -43,7 +52,7 @@ const COLORS = {
   warning: '#FBBC05',
 };
 
-const GOOGLE_MAPS_API_KEY_AQUI = 'AIzaSyBa-CJ6VtvTD11UVHcP7WN1g7CbqZm4j9o';
+const GOOGLE_MAPS_API_KEY_AQUI = process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY;
 
 const FALLBACK_LOCATION: Location.LocationObjectCoords = {
   latitude: -23.55052,
@@ -55,7 +64,9 @@ const FALLBACK_LOCATION: Location.LocationObjectCoords = {
   speed: 0,
 };
 
-// Motivos de cancelamento
+const screenWidth = Dimensions.get('window').width;
+const DRAWER_WIDTH = screenWidth * 0.8;
+
 const CANCEL_REASONS = [
   'Passageiro não compareceu',
   'Passageiro solicitou cancelamento',
@@ -65,7 +76,6 @@ const CANCEL_REASONS = [
   'Outro motivo',
 ];
 
-// Função para calcular preço dinâmico
 const calculateDynamicPrice = (distanceInKm: number): string => {
   const currentHour = new Date().getHours();
   const basePrice = 10;
@@ -92,7 +102,6 @@ const getPeriodLabel = (): string => {
   }
 };
 
-// MOCK DATA
 const MOCK_REQUESTS = [
   {
     id: 'req1',
@@ -121,14 +130,12 @@ const MOCK_REQUESTS = [
 type AvailabilityStatus = 'available' | 'unavailable' | 'on_ride';
 type RideStage = 'going_to_pickup' | 'arrived_at_pickup' | 'in_progress' | 'arrived_at_destination';
 
-// Marcador de destino menor
 const DestinationMarker = () => (
   <View style={styles.destinationMarkerContainer}>
     <View style={styles.destinationMarkerPin} />
   </View>
 );
 
-// Componente de cartão de corrida
 const RideRequestCard = ({
   request,
   onAccept,
@@ -239,6 +246,30 @@ export default function DriverHomeScreen() {
   const [showCancelModal, setShowCancelModal] = useState(false);
   const [cameraHeading, setCameraHeading] = useState(0);
   const [tracksViewChanges, setTracksViewChanges] = useState(true);
+
+  const [isDrawerVisible, setIsDrawerVisible] = useState(false);
+  const drawerAnimation = useRef(new Animated.Value(-DRAWER_WIDTH)).current;
+  const drawerOverlayOpacity = useRef(new Animated.Value(0)).current;
+
+  const [isFilterModalVisible, setIsFilterModalVisible] = useState(false);
+  const [passengerGender, setPassengerGender] = useState('any');
+  const [minRating, setMinRating] = useState('any');
+  const [acceptScheduled, setAcceptScheduled] = useState(true);
+  const [paymentPreference, setPaymentPreference] = useState('any');
+  const [minDistance, setMinDistance] = useState('0');
+  const [maxDistance, setMaxDistance] = useState('any');
+  const [acceptSilent, setAcceptSilent] = useState(true);
+
+  const [tempPassengerGender, setTempPassengerGender] = useState(passengerGender);
+  const [tempMinRating, setTempMinRating] = useState(minRating);
+  const [tempAcceptScheduled, setTempAcceptScheduled] = useState(acceptScheduled);
+  const [tempPaymentPreference, setTempPaymentPreference] = useState(paymentPreference);
+  const [tempMinDistance, setTempMinDistance] = useState(minDistance);
+  const [tempMaxDistance, setTempMaxDistance] = useState(maxDistance === 'any' ? '' : maxDistance);
+  const [tempAcceptSilent, setTempAcceptSilent] = useState(acceptSilent);
+
+  const [minDistancePlaceholder, setMinDistancePlaceholder] = useState('0');
+  const [maxDistancePlaceholder, setMaxDistancePlaceholder] = useState('Qualquer');
 
   const mapRef = useRef<MapView>(null);
 
@@ -359,10 +390,60 @@ export default function DriverHomeScreen() {
     Alert.alert('Corrida Cancelada', `Motivo: ${reason}`);
   };
 
-  const handleMenuPress = () => console.log('Abrir menu...');
-  const handleProfilePress = () => console.log('Abrir perfil/ganhos...');
+  const openDrawer = () => {
+    setIsDrawerVisible(true);
+    Animated.parallel([
+      Animated.timing(drawerAnimation, {
+        toValue: 0,
+        duration: 300,
+        useNativeDriver: true,
+      }),
+      Animated.timing(drawerOverlayOpacity, {
+        toValue: 1,
+        duration: 300,
+        useNativeDriver: true,
+      })
+    ]).start();
+  };
 
-  // --- RENDERIZAÇÃO DOS PAINÉIS ---
+  const closeDrawer = () => {
+    Animated.parallel([
+      Animated.timing(drawerAnimation, {
+        toValue: -DRAWER_WIDTH,
+        duration: 300,
+        useNativeDriver: true,
+      }),
+      Animated.timing(drawerOverlayOpacity, {
+        toValue: 0,
+        duration: 300,
+        useNativeDriver: true,
+      })
+    ]).start(() => setIsDrawerVisible(false));
+  };
+
+  const handleOpenFilterModal = () => {
+    setTempPassengerGender(passengerGender);
+    setTempMinRating(minRating);
+    setTempAcceptScheduled(acceptScheduled);
+    setTempPaymentPreference(paymentPreference);
+    setTempMinDistance(minDistance);
+    setTempMaxDistance(maxDistance === 'any' ? '' : maxDistance);
+    setTempAcceptSilent(acceptSilent);
+    setMinDistancePlaceholder(minDistance === '0' ? '0' : '');
+    setMaxDistancePlaceholder(maxDistance === 'any' ? 'Qualquer' : '');
+    setIsFilterModalVisible(true);
+  };
+
+  const handleSaveFilters = () => {
+    setPassengerGender(tempPassengerGender);
+    setMinRating(tempMinRating);
+    setAcceptScheduled(tempAcceptScheduled);
+    setPaymentPreference(tempPaymentPreference);
+    setMinDistance(tempMinDistance || '0');
+    setMaxDistance(tempMaxDistance === '' ? 'any' : tempMaxDistance);
+    setAcceptSilent(tempAcceptSilent);
+    setIsFilterModalVisible(false);
+  };
 
   const renderUnavailablePanel = () => (
     <View style={styles.bottomPanel}>
@@ -611,6 +692,196 @@ export default function DriverHomeScreen() {
     </Modal>
   );
 
+  const renderSideMenu = () => (
+    <Modal
+      animationType="none"
+      transparent={true}
+      visible={isDrawerVisible}
+      onRequestClose={closeDrawer}>
+      <TouchableWithoutFeedback onPress={closeDrawer}>
+        <Animated.View style={[styles.drawerOverlay, { opacity: drawerOverlayOpacity }]} />
+      </TouchableWithoutFeedback>
+
+      <Animated.View style={[styles.drawerContainer, { transform: [{ translateX: drawerAnimation }] }]}>
+        <SafeAreaView style={{ flex: 1, backgroundColor: COLORS.white }}>
+          <View style={styles.drawerHeader}>
+            <View style={styles.drawerAvatar}>
+              <User size={30} color={COLORS.primary} />
+            </View>
+            <View>
+              <Text style={styles.drawerUserName}>Olá, Motorista!</Text>
+              <Text style={styles.drawerUserEmail}>motorista@email.com</Text>
+            </View>
+          </View>
+          <ScrollView>
+            <TouchableOpacity style={styles.drawerItem} onPress={() => { closeDrawer(); Alert.alert("Navegação", "Indo para Meu Perfil"); }}>
+              <User color={COLORS.primary} size={22} /><Text style={styles.drawerLabel}>Meu Perfil</Text>
+            </TouchableOpacity>
+            {/* REMOVIDO: Meu Veículo */}
+            <TouchableOpacity style={styles.drawerItem} onPress={() => { closeDrawer(); Alert.alert("Navegação", "Indo para Ganhos"); }}>
+              <DollarSign color={COLORS.primary} size={22} /><Text style={styles.drawerLabel}>Ganhos</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.drawerItem} onPress={() => { closeDrawer(); Alert.alert("Navegação", "Indo para Histórico"); }}>
+              <History color={COLORS.primary} size={22} /><Text style={styles.drawerLabel}>Histórico de Corridas</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.drawerItem} onPress={() => { closeDrawer(); Alert.alert("Navegação", "Indo para Configurações"); }}>
+              <Settings color={COLORS.primary} size={22} /><Text style={styles.drawerLabel}>Configurações</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.drawerItem} onPress={() => { closeDrawer(); Alert.alert("Navegação", "Indo para Ajuda"); }}>
+              <LifeBuoy color={COLORS.primary} size={22} /><Text style={styles.drawerLabel}>Ajuda e Suporte</Text>
+            </TouchableOpacity>
+          </ScrollView>
+          <View style={styles.drawerFooter}>
+            <TouchableOpacity style={styles.drawerItem} onPress={() => { closeDrawer(); Alert.alert('Sair', 'Tem certeza que deseja sair?'); }}>
+              <LogOut color={COLORS.danger} size={22} /><Text style={[styles.drawerLabel, { color: COLORS.danger }]}>Sair</Text>
+            </TouchableOpacity>
+          </View>
+        </SafeAreaView>
+      </Animated.View>
+    </Modal>
+  );
+
+  const renderFilterModal = () => (
+    <Modal visible={isFilterModalVisible} animationType="slide" transparent onRequestClose={() => setIsFilterModalVisible(false)}>
+      <View style={styles.modalOverlay}>
+        <View style={styles.filterModalContent}>
+          {/* Header */}
+          <View style={styles.filterModalHeader}>
+            <Text style={styles.filterModalTitle}>Preferências de Corridas</Text>
+            <TouchableOpacity 
+              onPress={() => setIsFilterModalVisible(false)}
+              style={styles.closeButton}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            >
+              <X color={COLORS.black} size={26} />
+            </TouchableOpacity>
+          </View>
+
+          {/* Conteúdo */}
+          <ScrollView 
+            style={styles.filterScrollView} 
+            contentContainerStyle={{ paddingBottom: 30 }}
+            showsVerticalScrollIndicator={false}
+          >
+            <View style={styles.filterGroup}>
+              <Text style={styles.filterLabel}>Gênero do Passageiro</Text>
+              <View style={styles.segmentedControl}>
+                {['any', 'female', 'male'].map((opt) => (
+                  <TouchableOpacity
+                    key={opt}
+                    style={[styles.segment, tempPassengerGender === opt && styles.segmentActive]}
+                    onPress={() => setTempPassengerGender(opt)}
+                  >
+                    <Text style={[styles.segmentText, tempPassengerGender === opt && styles.segmentTextActive]}>
+                      {opt === 'any' ? 'Qualquer' : opt === 'female' ? 'Feminino' : 'Masculino'}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
+
+            <View style={styles.filterGroup}>
+              <Text style={styles.filterLabel}>Nota Mínima</Text>
+              <View style={styles.segmentedControl}>
+                {['any', '4', '4.5'].map((opt) => (
+                  <TouchableOpacity
+                    key={opt}
+                    style={[styles.segment, tempMinRating === opt && styles.segmentActive]}
+                    onPress={() => setTempMinRating(opt)}
+                  >
+                    <Text style={[styles.segmentText, tempMinRating === opt && styles.segmentTextActive]}>
+                      {opt === 'any' ? 'Qualquer' : opt + '+'}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
+
+            <View style={styles.filterGroup}>
+              <Text style={styles.filterLabel}>Forma de Pagamento</Text>
+              <View style={styles.segmentedControl}>
+                {['any', 'cartao', 'dinheiro', 'pix'].map((opt) => (
+                  <TouchableOpacity
+                    key={opt}
+                    style={[styles.segment, tempPaymentPreference === opt && styles.segmentActive]}
+                    onPress={() => setTempPaymentPreference(opt)}
+                  >
+                    <Text style={[styles.segmentText, tempPaymentPreference === opt && styles.segmentTextActive]}>
+                      {opt === 'any' ? 'Qualquer' : opt.charAt(0).toUpperCase() + opt.slice(1)}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
+
+            <View style={styles.filterGroup}>
+              <Text style={styles.filterLabel}>Distância Mínima (km)</Text>
+              <TextInput
+                style={styles.filterInput}
+                value={tempMinDistance}
+                onChangeText={setTempMinDistance}
+                onFocus={() => setMinDistancePlaceholder('')}
+                onBlur={() => {
+                  if (!tempMinDistance) setMinDistancePlaceholder('0');
+                }}
+                placeholder={minDistancePlaceholder}
+                placeholderTextColor={COLORS.mediumGray}
+                keyboardType="numeric"
+              />
+            </View>
+
+            <View style={styles.filterGroup}>
+              <Text style={styles.filterLabel}>Distância Máxima (km)</Text>
+              <TextInput
+                style={styles.filterInput}
+                value={tempMaxDistance}
+                onChangeText={setTempMaxDistance}
+                onFocus={() => setMaxDistancePlaceholder('')}
+                onBlur={() => {
+                  if (!tempMaxDistance) setMaxDistancePlaceholder('Qualquer');
+                }}
+                placeholder={maxDistancePlaceholder}
+                placeholderTextColor={COLORS.mediumGray}
+                keyboardType="numeric"
+              />
+            </View>
+
+            <View style={styles.filterGroup}>
+              <View style={styles.switchRow}>
+                <Clock color={COLORS.black} size={22} />
+                <Text style={styles.filterLabelSwitch}>Aceitar Corridas Agendadas</Text>
+                <Switch
+                  value={tempAcceptScheduled}
+                  onValueChange={setTempAcceptScheduled}
+                  trackColor={{ false: COLORS.mediumGray, true: COLORS.primary }}
+                />
+              </View>
+            </View>
+
+            <View style={styles.filterGroup}>
+              <View style={styles.switchRow}>
+                <MicOff color={COLORS.black} size={22} />
+                <Text style={styles.filterLabelSwitch}>Aceitar Passageiros Silenciosos</Text>
+                <Switch
+                  value={tempAcceptSilent}
+                  onValueChange={setTempAcceptSilent}
+                  trackColor={{ false: COLORS.mediumGray, true: COLORS.primary }}
+                />
+              </View>
+            </View>
+          </ScrollView>
+
+          {/* Botão Fixo */}
+          <View style={styles.filterModalFooter}>
+            <TouchableOpacity style={styles.saveButton} onPress={handleSaveFilters}>
+              <Text style={styles.saveButtonText}>Salvar Filtros</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </View>
+    </Modal>
+  );
+
   return (
     <SafeAreaView style={styles.safeArea}>
       <StatusBar barStyle="dark-content" backgroundColor={COLORS.white} />
@@ -629,31 +900,19 @@ export default function DriverHomeScreen() {
         }}
         onRegionChangeComplete={updateCameraHeading}
       >
-        {/* Marcador do Motorista com Círculo Roxo Claro + Carro Branco */}
+        {/* MARCADOR DO MOTORISTA - IGUAL AO DO PASSAGEIRO */}
         {driverLocation && (
           <Marker
             coordinate={driverLocation}
             anchor={{ x: 0.5, y: 0.5 }}
-            flat={true}
             tracksViewChanges={tracksViewChanges}
           >
-            <View style={styles.driverMarkerContainer}>
-              {/* Círculo roxo claro preenchido */}
-              <View style={styles.driverMarkerCircle} />
-              {/* Carro branco rotacionado */}
-              <View
-                style={{
-                  position: 'absolute',
-                  transform: [{ rotate: `${(driverLocation.heading ?? 0) - cameraHeading}deg` }],
-                }}
-              >
-                <Car color={COLORS.white} size={20} />
-              </View>
+            <View style={styles.userMarker}>
+              <View style={styles.userMarkerCore} />
             </View>
           </Marker>
         )}
 
-        {/* Marcador de Pickup */}
         {currentRide && (rideStage === 'going_to_pickup' || rideStage === 'arrived_at_pickup') && (
           <Marker coordinate={currentRide.pickupCoords} anchor={{ x: 0.5, y: 1.0 }}>
             <View style={styles.pickupMarker}>
@@ -662,15 +921,13 @@ export default function DriverHomeScreen() {
           </Marker>
         )}
 
-        {/* Marcador de Destino */}
         {currentRide && (rideStage === 'in_progress' || rideStage === 'arrived_at_destination') && (
           <Marker coordinate={currentRide.destinationCoords} anchor={{ x: 0.5, y: 1.0 }}>
             <DestinationMarker />
           </Marker>
         )}
 
-        {/* Rota: Motorista → Pickup */}
-        {driverLocation && currentRide && (rideStage === 'going_to_pickup' || rideStage === 'arrived_at_pickup') && (
+        {driverLocation && currentRide && GOOGLE_MAPS_API_KEY_AQUI && (rideStage === 'going_to_pickup' || rideStage === 'arrived_at_pickup') && (
           <MapViewDirections
             origin={driverLocation}
             destination={currentRide.pickupCoords}
@@ -686,8 +943,7 @@ export default function DriverHomeScreen() {
           />
         )}
 
-        {/* Rota: Pickup → Destino */}
-        {driverLocation && currentRide && (rideStage === 'in_progress' || rideStage === 'arrived_at_destination') && (
+        {driverLocation && currentRide && GOOGLE_MAPS_API_KEY_AQUI && (rideStage === 'in_progress' || rideStage === 'arrived_at_destination') && (
           <MapViewDirections
             origin={currentRide.pickupCoords}
             destination={currentRide.destinationCoords}
@@ -704,9 +960,8 @@ export default function DriverHomeScreen() {
         )}
       </MapView>
 
-      {/* Header */}
       <View style={styles.headerContainer}>
-        <TouchableOpacity style={styles.iconButton} onPress={handleMenuPress}>
+        <TouchableOpacity style={styles.iconButton} onPress={openDrawer}>
           <Menu color={COLORS.black} size={28} />
         </TouchableOpacity>
         <View style={styles.headerCenter}>
@@ -727,19 +982,27 @@ export default function DriverHomeScreen() {
               : 'Offline'}
           </Text>
         </View>
-        <TouchableOpacity style={styles.iconButton} onPress={handleProfilePress}>
-          <User color={COLORS.black} size={28} />
-        </TouchableOpacity>
+        <View style={styles.headerRightColumn}>
+          <TouchableOpacity style={styles.iconButton} onPress={openDrawer}>
+            <User color={COLORS.black} size={28} />
+          </TouchableOpacity>
+          <TouchableOpacity 
+            style={[styles.iconButton, styles.filterButton]} 
+            onPress={handleOpenFilterModal}
+          >
+            <Filter color={COLORS.black} size={24} />
+          </TouchableOpacity>
+        </View>
       </View>
 
-      {/* Painéis */}
       {availabilityStatus === 'unavailable' && renderUnavailablePanel()}
       {availabilityStatus === 'available' && incomingRequests.length === 0 && renderAvailablePanel()}
       {availabilityStatus === 'available' && incomingRequests.length > 0 && renderRequestPanel()}
       {availabilityStatus === 'on_ride' && renderOnRidePanel()}
 
-      {/* Modal de Cancelamento */}
       {renderCancelModal()}
+      {renderSideMenu()}
+      {renderFilterModal()}
     </SafeAreaView>
   );
 }
@@ -787,27 +1050,32 @@ const styles = StyleSheet.create({
   headerBadgeOnline: { backgroundColor: COLORS.success },
   headerBadgeOffline: { backgroundColor: COLORS.danger },
   headerBadgeOnRide: { backgroundColor: COLORS.warning, color: COLORS.black },
-
-  // Marcador do Motorista
-  driverMarkerContainer: {
-    width: 44,
-    height: 44,
-    justifyContent: 'center',
+  headerRightColumn: {
+    flexDirection: 'column',
     alignItems: 'center',
-    position: 'relative',
+    gap: 12,
   },
-  driverMarkerCircle: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: 'rgba(110, 23, 235, 0.25)',
-    borderWidth: 3,
-    borderColor: COLORS.white,
-    elevation: 6,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
+  filterButton: {
+    padding: 6,
+    borderRadius: 20,
+  },
+
+  // MARCADOR DO PASSAGEIRO (AGORA USADO TAMBÉM PARA MOTORISTA)
+  userMarker: { 
+    width: 28, 
+    height: 28, 
+    borderRadius: 14, 
+    backgroundColor: 'rgba(110, 23, 235, 0.2)', 
+    justifyContent: 'center', 
+    alignItems: 'center' 
+  },
+  userMarkerCore: { 
+    width: 14, 
+    height: 14, 
+    borderRadius: 7, 
+    backgroundColor: COLORS.primary, 
+    borderWidth: 2, 
+    borderColor: COLORS.white 
   },
 
   destinationMarkerContainer: {
@@ -1220,7 +1488,6 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
   },
 
-  // Modal de cancelamento
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
@@ -1238,7 +1505,7 @@ const styles = StyleSheet.create({
   modalHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 15,
+    justifyContent: 'space-between',
     marginBottom: 20,
   },
   modalTitle: {
@@ -1278,5 +1545,172 @@ const styles = StyleSheet.create({
     color: COLORS.black,
     fontSize: 16,
     fontWeight: 'bold',
+  },
+
+  drawerOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    zIndex: 40,
+  },
+  drawerContainer: {
+    position: 'absolute',
+    top: 0,
+    bottom: 0,
+    left: 0,
+    width: DRAWER_WIDTH,
+    backgroundColor: COLORS.white,
+    zIndex: 50,
+  },
+  drawerHeader: {
+    padding: 20,
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.lightGray,
+    marginTop: 20,
+  },
+  drawerAvatar: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    backgroundColor: COLORS.primary + '20',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  drawerUserName: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: COLORS.black,
+  },
+  drawerUserEmail: {
+    fontSize: 14,
+    color: COLORS.darkGray,
+  },
+  drawerItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 16,
+    paddingHorizontal: 20,
+    gap: 16,
+  },
+  drawerLabel: {
+    fontSize: 16,
+    fontWeight: '500',
+    color: COLORS.black,
+  },
+  drawerFooter: {
+    borderTopWidth: 1,
+    borderTopColor: COLORS.lightGray,
+    paddingVertical: 10,
+  },
+
+  filterModalContent: {
+    backgroundColor: COLORS.white,
+    borderTopLeftRadius: 30,
+    borderTopRightRadius: 30,
+    maxHeight: '95%',
+    marginTop: 'auto',
+    overflow: 'hidden',
+    flex: 1,
+  },
+  filterModalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 25,
+    paddingTop: 20,
+    paddingBottom: 15,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.lightGray,
+  },
+  filterModalTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: COLORS.black,
+    flex: 1,
+  },
+  closeButton: {
+    padding: 4,
+  },
+  filterScrollView: {
+    flex: 1,
+    paddingHorizontal: 25,
+    paddingTop: 20,
+    paddingBottom: 30,
+  },
+  filterModalFooter: {
+    paddingHorizontal: 25,
+    paddingVertical: 20,
+    borderTopWidth: 1,
+    borderTopColor: COLORS.lightGray,
+    backgroundColor: COLORS.white,
+  },
+  filterGroup: {
+    marginBottom: 24,
+  },
+  filterLabel: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: COLORS.black,
+    marginBottom: 12,
+  },
+  segmentedControl: {
+    flexDirection: 'row',
+    width: '100%',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: COLORS.primary,
+    overflow: 'hidden',
+  },
+  segment: {
+    flex: 1,
+    paddingVertical: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: COLORS.white,
+  },
+  segmentActive: {
+    backgroundColor: COLORS.primary,
+  },
+  segmentText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: COLORS.primary,
+  },
+  segmentTextActive: {
+    color: COLORS.white,
+  },
+  switchRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  filterLabelSwitch: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: COLORS.black,
+    flex: 1,
+    marginLeft: 12,
+  },
+  saveButton: {
+    backgroundColor: COLORS.primary,
+    borderRadius: 12,
+    paddingVertical: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  saveButtonText: {
+    color: COLORS.white,
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  filterInput: {
+    backgroundColor: COLORS.lightGray,
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    fontSize: 16,
+    color: COLORS.black,
   },
 });
