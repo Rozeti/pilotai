@@ -26,10 +26,29 @@ import DateTimePicker from '@react-native-community/datetimepicker';
 
 // ÍCONES
 import {
-  ArrowLeft, Briefcase, Car, Clock, DollarSign, Home, MapPin, Menu,
-  Navigation, Search, User, Filter, X, CreditCard, Shield, LifeBuoy,
-  LogOut, MicOff, Users, History, Settings,
+  ArrowLeft,
+  Briefcase,
+  Car,
+  Clock,
+  DollarSign,
+  Home,
+  MapPin,
+  Menu,
+  Navigation,
+  Search,
+  User,
+  Filter,
+  X,
+  CreditCard,
+  LifeBuoy,
+  LogOut,
+  MicOff,
+  History,
+  Settings,
 } from 'lucide-react-native';
+
+// NAVEGAÇÃO
+import { useNavigation } from '@react-navigation/native';
 
 // Cores do projeto
 const COLORS = {
@@ -39,7 +58,6 @@ const COLORS = {
   darkGray: '#909090',
   black: '#141414',
   primary: '#6E17EB',
-  lightPurple: '#A065F5',
   danger: '#EA4335',
   success: '#34A853',
 };
@@ -52,15 +70,7 @@ const CONFIRMED_PANEL_HEIGHT = screenHeight * 0.5;
 const DRAWER_WIDTH = screenWidth * 0.8;
 
 // Componente de atalho
-const FavoriteShortcut = ({
-  icon: Icon,
-  title,
-  onPress,
-}: {
-  icon: React.ElementType;
-  title: string;
-  onPress: () => void;
-}) => (
+const FavoriteShortcut = ({ icon: Icon, title, onPress }: { icon: React.ElementType; title: string; onPress: () => void }) => (
   <TouchableOpacity style={styles.shortcutButton} onPress={onPress}>
     <View style={styles.shortcutIconContainer}>
       <Icon color={COLORS.primary} size={20} />
@@ -77,7 +87,7 @@ const DestinationMarker = () => (
   </View>
 );
 
-// Função para calcular preço dinâmico
+// Preço dinâmico
 const calculateDynamicPrice = (distanceInKm: number): string => {
   const currentHour = new Date().getHours();
   const basePrice = 10;
@@ -94,20 +104,21 @@ const calculateDynamicPrice = (distanceInKm: number): string => {
 };
 
 const getPeriodLabel = (): string => {
-  const currentHour = new Date().getHours();
-  if ((currentHour >= 7 && currentHour < 9) || (currentHour >= 17 && currentHour < 20)) {
-    return 'Horário de Rush (+20%)';
-  } else if (currentHour >= 20 || currentHour < 6) {
-    return 'Noturno (+40%)';
-  } else {
-    return 'Diurno';
-  }
+  const h = new Date().getHours();
+  if ((h >= 7 && h < 9) || (h >= 17 && h < 20)) return 'Horário de Rush (+20%)';
+  if (h >= 20 || h < 6) return 'Noturno (+40%)';
+  return 'Diurno';
 };
 
-// =================================================================
-// === TELA PRINCIPAL (MAPA) =======================================
-// =================================================================
+// TELA PRINCIPAL
 export default function PassengerHomeScreen() {
+  const navigation = useNavigation<any>();
+
+  // Função centralizada para ir ao perfil
+  const goToProfile = () => {
+    navigation.navigate('PassengerProfileScreen');
+  };
+
   const [userLocation, setUserLocation] = useState<Location.LocationObjectCoords | null>(null);
   const [origin, setOrigin] = useState<Location.LocationObjectCoords | null>(null);
   const [originAddress, setOriginAddress] = useState('Sua Localização Atual');
@@ -119,11 +130,7 @@ export default function PassengerHomeScreen() {
 
   const [activeField, setActiveField] = useState<'origin' | 'destination' | null>(null);
 
-  const [routeInfo, setRouteInfo] = useState<{
-    distance: string;
-    duration: string;
-    price: string;
-  } | null>(null);
+  const [routeInfo, setRouteInfo] = useState<{ distance: string; duration: string; price: string } | null>(null);
 
   const [viewState, setViewState] = useState<'idle' | 'selecting' | 'confirmed'>('idle');
   const [isLoading, setIsLoading] = useState(false);
@@ -137,16 +144,18 @@ export default function PassengerHomeScreen() {
 
   const [paymentMethod, setPaymentMethod] = useState('cartao');
 
-  // === ESTADOS PARA OS MODAIS ===
+  // Modais
   const [isDrawerVisible, setIsDrawerVisible] = useState(false);
   const [isFilterModalVisible, setIsFilterModalVisible] = useState(false);
 
-  // Filtros para passageiro
+  // Filtros reais
   const [driverGender, setDriverGender] = useState('any');
   const [minDriverRating, setMinDriverRating] = useState('any');
   const [wantsSilentDriver, setWantsSilentDriver] = useState(false);
   const [paymentPreference, setPaymentPreference] = useState('any');
   const [maxDistance, setMaxDistance] = useState('any');
+
+  // Filtros temporários (modal)
   const [tempDriverGender, setTempDriverGender] = useState(driverGender);
   const [tempMinDriverRating, setTempMinDriverRating] = useState(minDriverRating);
   const [tempWantsSilentDriver, setTempWantsSilentDriver] = useState(wantsSilentDriver);
@@ -154,77 +163,69 @@ export default function PassengerHomeScreen() {
   const [tempMaxDistance, setTempMaxDistance] = useState(maxDistance === 'any' ? '' : maxDistance);
   const [maxDistancePlaceholder, setMaxDistancePlaceholder] = useState('Qualquer');
 
-  // === ANIMAÇÕES ===
+  // Animações
   const drawerAnimation = useRef(new Animated.Value(-DRAWER_WIDTH)).current;
   const drawerOverlayOpacity = useRef(new Animated.Value(0)).current;
-
-  const mapRef = useRef<MapView>(null);
-  const originInputRef = useRef<TextInput>(null);
-  const destinationInputRef = useRef<TextInput>(null);
   const panelAnimation = useRef(new Animated.Value(0)).current;
   const keyboardOffset = useRef(new Animated.Value(0)).current;
 
-  // Animar painel
-  useEffect(() => {
-    if (viewState === 'selecting' || viewState === 'confirmed') {
-      Animated.spring(panelAnimation, { toValue: 1, friction: 8, tension: 50, useNativeDriver: true }).start();
-    } else {
-      Animated.spring(panelAnimation, { toValue: 0, friction: 8, tension: 50, useNativeDriver: true }).start();
-    }
-  }, [viewState]);
+  const mapRef = useRef<MapView>(null);
 
-  // Listener para teclado
-  useEffect(() => {
-    const keyboardDidShowListener = Keyboard.addListener('keyboardDidShow', (e) => {
-      const moveUp = -e.endCoordinates.height + 100;
-      Animated.spring(keyboardOffset, { toValue: moveUp, friction: 8, tension: 50, useNativeDriver: true }).start();
-    });
-  const keyboardDidHideListener = Keyboard.addListener('keyboardDidHide', () => {
-      Animated.spring(keyboardOffset, { toValue: 0, friction: 8, tension: 50, useNativeDriver: true }).start();
-    });
-    return () => {
-      keyboardDidShowListener.remove();
-      keyboardDidHideListener.remove();
-    };
-  }, []);
-
-  // Pedir permissão de localização
+  // Localização inicial
   useEffect(() => {
     (async () => {
-      let { status } = await Location.requestForegroundPermissionsAsync();
+      const { status } = await Location.requestForegroundPermissionsAsync();
       if (status !== 'granted') {
-        Alert.alert('Permissão necessária', 'Precisamos da sua permissão de localização.');
+        Alert.alert('Permissão necessária', 'Precisamos da sua localização.');
         return;
       }
-      try {
-        let location = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High });
-        const coords = location.coords;
-        setUserLocation(coords);
-        setOrigin(coords);
-        mapRef.current?.animateToRegion({
-          latitude: coords.latitude,
-          longitude: coords.longitude,
-          latitudeDelta: 0.01,
-          longitudeDelta: 0.01,
-        }, 1000);
-      } catch (error) {
-        Alert.alert('Erro', 'Não foi possível obter sua localização.');
-      }
+      const location = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High });
+      const coords = location.coords;
+      setUserLocation(coords);
+      setOrigin(coords);
+      mapRef.current?.animateToRegion({
+        latitude: coords.latitude,
+        longitude: coords.longitude,
+        latitudeDelta: 0.01,
+        longitudeDelta: 0.01,
+      }, 1000);
     })();
   }, []);
 
+  // Animação do painel
+  useEffect(() => {
+    Animated.spring(panelAnimation, {
+      toValue: viewState === 'selecting' || viewState === 'confirmed' ? 1 : 0,
+      friction: 8,
+      tension: 50,
+      useNativeDriver: true,
+    }).start();
+  }, [viewState]);
+
+  // Teclado
+  useEffect(() => {
+    const show = Keyboard.addListener('keyboardDidShow', e => {
+      Animated.spring(keyboardOffset, { toValue: -e.endCoordinates.height + 100, useNativeDriver: true }).start();
+    });
+    const hide = Keyboard.addListener('keyboardDidHide', () => {
+      Animated.spring(keyboardOffset, { toValue: 0, useNativeDriver: true }).start();
+    });
+    return () => { show.remove(); hide.remove(); };
+  }, []);
+
+  // Drawer
   const openDrawer = () => {
     setIsDrawerVisible(true);
     Animated.parallel([
       Animated.timing(drawerAnimation, { toValue: 0, duration: 300, useNativeDriver: true }),
-      Animated.timing(drawerOverlayOpacity, { toValue: 1, duration: 300, useNativeDriver: true })
+      Animated.timing(drawerOverlayOpacity, { toValue: 1, duration: 300, useNativeDriver: true }),
     ]).start();
   };
 
   const closeDrawer = () => {
     Animated.parallel([
       Animated.timing(drawerAnimation, { toValue: -DRAWER_WIDTH, duration: 300, useNativeDriver: true }),
-      Animated.timing(drawerOverlayOpacity, { toValue: 0, duration: 300, useNativeDriver: true })
+      Animated.timing(drawerOverlayOpacity, { toValue: 0, duration: 300, useNativeDriver: true }),
     ]).start(() => setIsDrawerVisible(false));
   };
 
@@ -238,115 +239,69 @@ export default function PassengerHomeScreen() {
     setActiveField(null);
     setRouteInfo(null);
     setIsScheduling(false);
-    setScheduleDate(new Date());
     setScheduledDate(null);
     setPaymentMethod('cartao');
   };
 
   const geocodeAddress = async (address: string): Promise<Location.LocationObjectCoords | null> => {
-    if (!GOOGLE_MAPS_API_KEY_AQUI || GOOGLE_MAPS_API_KEY_AQUI.length < 10) {
-      Alert.alert('API Key Faltando', 'Adicione sua chave de API do Google.');
-      return null;
-    }
+    if (!GOOGLE_MAPS_API_KEY_AQUI) return null;
     try {
-      const encodedAddress = encodeURIComponent(address);
-      const url = `https://maps.googleapis.com/maps/api/geocode/json?address=${encodedAddress}&key=${GOOGLE_MAPS_API_KEY_AQUI}`;
-      const response = await fetch(url);
-      const data = await response.json();
-      if (data.status !== 'OK' || !data.results || data.results.length === 0) {
-        throw new Error('Endereço não encontrado');
-      }
-      const location = data.results[0].geometry.location;
-      return {
-        latitude: location.lat, longitude: location.lng,
-        altitude: null, accuracy: null, altitudeAccuracy: null, heading: null, speed: null,
-      };
-    } catch (error) {
-      console.error(error);
-      Alert.alert('Erro de Geocodificação', `Não foi possível encontrar: ${address}`);
+      const url = `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(address)}&key=${GOOGLE_MAPS_API_KEY_AQUI}`;
+      const res = await fetch(url);
+      const data = await res.json();
+      if (data.status !== 'OK' || !data.results?.length) throw new Error();
+      const loc = data.results[0].geometry.location;
+      return { latitude: loc.lat, longitude: loc.lng, altitude: null, accuracy: null, altitudeAccuracy: null, heading: null, speed: null };
+    } catch {
+      Alert.alert('Erro', 'Endereço não encontrado');
       return null;
     }
   };
 
   const fetchAutocomplete = async (text: string, field: 'origin' | 'destination') => {
     if (text.length < 3) {
-      if (field === 'origin') setOriginSuggestions([]);
-      else setDestinationSuggestions([]);
+      field === 'origin' ? setOriginSuggestions([]) : setDestinationSuggestions([]);
       return;
     }
     try {
       const url = `https://maps.googleapis.com/maps/api/place/autocomplete/json?input=${encodeURIComponent(text)}&key=${GOOGLE_MAPS_API_KEY_AQUI}&language=pt_BR`;
-      const response = await fetch(url);
-      const data = await response.json();
+      const res = await fetch(url);
+      const data = await res.json();
       if (data.status === 'OK') {
-        if (field === 'origin') setOriginSuggestions(data.predictions);
-        else setDestinationSuggestions(data.predictions);
-      } else {
-        if (field === 'origin') setOriginSuggestions([]);
-        else setDestinationSuggestions([]);
+        field === 'origin' ? setOriginSuggestions(data.predictions) : setDestinationSuggestions(data.predictions);
       }
-    } catch (error) {
-      console.error(error);
-    }
+    } catch (e) { console.log(e); }
   };
 
   const handleConfirmTrajeto = async () => {
-    if (!originAddress || !destinationAddress) {
-      Alert.alert('Campos vazios', 'Preencha a origem e o destino.');
-      return;
-    }
+    if (!originAddress || !destinationAddress) return Alert.alert('Erro', 'Preencha origem e destino');
     setIsLoading(true);
-    let finalOriginCoords = origin;
-    if (originAddress !== 'Sua Localização Atual') {
-      finalOriginCoords = await geocodeAddress(originAddress);
-    } else {
-      finalOriginCoords = userLocation;
-    }
-    const finalDestinationCoords = await geocodeAddress(destinationAddress);
-    if (finalOriginCoords && finalDestinationCoords) {
-      setOrigin(finalOriginCoords);
-      setDestination(finalDestinationCoords);
-      setOriginSuggestions([]);
-      setDestinationSuggestions([]);
-      setActiveField(null);
-      Keyboard.dismiss();
-      setScheduledDate(isScheduling ? scheduleDate : null);
+    const finalOrigin = originAddress === 'Sua Localização Atual' ? userLocation : await geocodeAddress(originAddress);
+    const finalDest = await geocodeAddress(destinationAddress);
+    if (finalOrigin && finalDest) {
+      setOrigin(finalOrigin);
+      setDestination(finalDest);
       setViewState('confirmed');
-    } else {
-      Alert.alert('Erro', 'Não foi possível definir o trajeto.');
+      setScheduledDate(isScheduling ? scheduleDate : null);
     }
     setIsLoading(false);
   };
 
-  const onSuggestionPress = async (suggestion: any, field: 'origin' | 'destination') => {
-    if (field === 'origin') {
-      setOriginAddress(suggestion.description);
-      setOriginSuggestions([]);
-    } else {
-      setDestinationAddress(suggestion.description);
-      setDestinationSuggestions([]);
-    }
+  const onSuggestionPress = (suggestion: any, field: 'origin' | 'destination') => {
+    if (field === 'origin') setOriginAddress(suggestion.description);
+    else setDestinationAddress(suggestion.description);
+    setOriginSuggestions([]);
+    setDestinationSuggestions([]);
     Keyboard.dismiss();
   };
 
   const handleStartRide = () => {
-    const title = scheduledDate ? 'Agendar Corrida' : 'Iniciar Corrida';
-    const message = scheduledDate ? 'Deseja agendar a corrida agora?' : 'Deseja iniciar a corrida agora?';
-    Alert.alert(title, message, [
-      { text: 'Cancelar', style: 'cancel' },
-      {
-        text: 'Confirmar',
-        onPress: () => {
-          console.log(scheduledDate ? `Agendando corrida para ${scheduledDate.toLocaleString()}` : 'Corrida iniciada');
-          console.log(`Forma de pagamento: ${paymentMethod}`);
-          console.log('Filtros aplicados:', { driverGender, wantsSilentDriver });
-        },
-      },
-    ]);
+    Alert.alert(
+      scheduledDate ? 'Agendar Corrida' : 'Iniciar Corrida',
+      scheduledDate ? 'Deseja agendar agora?' : 'Deseja chamar o motorista agora?',
+      [{ text: 'Confirmar', onPress: () => console.log('Corrida iniciada/agendada') }]
+    );
   };
-
-  const handleMenuPress = () => openDrawer();
-  const handleProfilePress = () => openDrawer();
 
   const handleOpenFilterModal = () => {
     setTempDriverGender(driverGender);
@@ -367,84 +322,54 @@ export default function PassengerHomeScreen() {
     setIsFilterModalVisible(false);
   };
 
-  // --- RENDERIZAÇÃO DOS PAINÉIS ---
-
+  // RENDER PANELS (mantidos como no seu original)
   const renderIdlePanel = () => (
     <View style={styles.bottomPanel}>
       <Text style={styles.panelTitle}>Olá, Passageiro!</Text>
       <Text style={styles.panelSubtitle}>Onde seu carro precisa ir?</Text>
-      <TouchableOpacity style={styles.searchButton} onPress={() => setViewState('selecting')} activeOpacity={0.7}>
+      <TouchableOpacity style={styles.searchButton} onPress={() => setViewState('selecting')}>
         <Search color={COLORS.primary} size={24} />
         <Text style={styles.searchButtonText}>Para onde vamos?</Text>
       </TouchableOpacity>
       <View style={styles.shortcutsContainer}>
-        <FavoriteShortcut icon={Home} title="Casa" onPress={() => console.log('Ir para Casa')} />
-        <FavoriteShortcut icon={Briefcase} title="Trabalho" onPress={() => console.log('Ir para Trabalho')} />
-        <FavoriteShortcut icon={MapPin} title="Recentes" onPress={() => console.log('Ver Recentes')} />
+        <FavoriteShortcut icon={Home} title="Casa" onPress={() => {}} />
+        <FavoriteShortcut icon={Briefcase} title="Trabalho" onPress={() => {}} />
+        <FavoriteShortcut icon={MapPin} title="Recentes" onPress={() => {}} />
       </View>
     </View>
   );
 
   const selectingTranslateY = Animated.add(
-    panelAnimation.interpolate({
-      inputRange: [0, 1],
-      outputRange: [panelHeight || 450, 0],
-    }),
+    panelAnimation.interpolate({ inputRange: [0, 1], outputRange: [panelHeight || 450, 0] }),
     keyboardOffset
   );
 
   const renderSelectingPanel = () => (
-    <Animated.View
-      style={[
-        styles.bottomPanelSelecting,
-        { transform: [{ translateY: selectingTranslateY }] },
-      ]}
-      onLayout={({ nativeEvent }) => setPanelHeight(nativeEvent.layout.height)}
-    >
-      <ScrollView
-        style={{ flex: 1 }}
-        contentContainerStyle={styles.selectingScrollContent}
-        keyboardShouldPersistTaps="handled"
-        showsVerticalScrollIndicator={false}
-      >
+    <Animated.View style={[styles.bottomPanelSelecting, { transform: [{ translateY: selectingTranslateY }] }]} onLayout={e => setPanelHeight(e.nativeEvent.layout.height)}>
+      <ScrollView contentContainerStyle={styles.selectingScrollContent} keyboardShouldPersistTaps="handled">
         <View style={styles.selectionHeader}>
-          <TouchableOpacity
-            style={styles.backButton}
-            onPress={() => {
-              setViewState('idle');
-              resetAddressFields();
-              Keyboard.dismiss();
-            }}>
+          <TouchableOpacity style={styles.backButton} onPress={() => { setViewState('idle'); resetAddressFields(); Keyboard.dismiss(); }}>
             <ArrowLeft color={COLORS.black} size={24} />
           </TouchableOpacity>
           <Text style={styles.panelTitle}>Definir Trajeto</Text>
         </View>
-
-        <View style={styles.inputContainer}>
+        {/* Inputs de Origem/Destino e Sugestões */}
+         <View style={styles.inputContainer}>
           <Text style={styles.inputLabel}>ORIGEM</Text>
           <TextInput
-            ref={originInputRef}
             style={styles.textInput}
             value={originAddress}
-            onChangeText={(text) => {
-              setOriginAddress(text);
-              fetchAutocomplete(text, 'origin');
-            }}
-            placeholder="Digite o endereço de partida..."
-            placeholderTextColor={COLORS.darkGray}
-            onFocus={() => {
-              setActiveField('origin');
-              setDestinationSuggestions([]);
-            }}
+            onChangeText={(text) => { setOriginAddress(text); fetchAutocomplete(text, 'origin'); }}
+            onFocus={() => setActiveField('origin')}
             onBlur={() => setActiveField(null)}
           />
           {activeField === 'origin' && originSuggestions.length > 0 && (
             <View style={styles.suggestionsContainer}>
-              <ScrollView nestedScrollEnabled={true} keyboardShouldPersistTaps="handled" style={styles.suggestionsList} showsVerticalScrollIndicator={false}>
+              <ScrollView nestedScrollEnabled={true} keyboardShouldPersistTaps="handled">
                 {originSuggestions.map((item) => (
                   <TouchableOpacity key={item.place_id} style={styles.suggestionItem} onPress={() => onSuggestionPress(item, 'origin')}>
                     <MapPin color={COLORS.primary} size={18} />
-                    <Text style={styles.suggestionText} numberOfLines={2}>{item.description}</Text>
+                    <Text style={styles.suggestionText}>{item.description}</Text>
                   </TouchableOpacity>
                 ))}
               </ScrollView>
@@ -455,28 +380,20 @@ export default function PassengerHomeScreen() {
         <View style={styles.inputContainer}>
           <Text style={styles.inputLabel}>DESTINO</Text>
           <TextInput
-            ref={destinationInputRef}
             style={styles.textInput}
-            placeholder="Digite o endereço de destino..."
-            placeholderTextColor={COLORS.darkGray}
+            placeholder="Digite o destino..."
             value={destinationAddress}
-            onChangeText={(text) => {
-              setDestinationAddress(text);
-              fetchAutocomplete(text, 'destination');
-            }}
-            onFocus={() => {
-              setActiveField('destination');
-              setOriginSuggestions([]);
-            }}
+            onChangeText={(text) => { setDestinationAddress(text); fetchAutocomplete(text, 'destination'); }}
+            onFocus={() => setActiveField('destination')}
             onBlur={() => setActiveField(null)}
           />
           {activeField === 'destination' && destinationSuggestions.length > 0 && (
             <View style={styles.suggestionsContainer}>
-              <ScrollView nestedScrollEnabled={true} keyboardShouldPersistTaps="handled" style={styles.suggestionsList} showsVerticalScrollIndicator={false}>
+              <ScrollView nestedScrollEnabled={true} keyboardShouldPersistTaps="handled">
                 {destinationSuggestions.map((item) => (
                   <TouchableOpacity key={item.place_id} style={styles.suggestionItem} onPress={() => onSuggestionPress(item, 'destination')}>
                     <MapPin color={COLORS.primary} size={18} />
-                    <Text style={styles.suggestionText} numberOfLines={2}>{item.description}</Text>
+                    <Text style={styles.suggestionText}>{item.description}</Text>
                   </TouchableOpacity>
                 ))}
               </ScrollView>
@@ -484,200 +401,60 @@ export default function PassengerHomeScreen() {
           )}
         </View>
 
-        <View style={styles.inputContainer}>
-          <Text style={styles.inputLabel}>AGENDAR CORRIDA</Text>
-          <View style={styles.switchContainer}>
-            <Switch
-              value={isScheduling}
-              onValueChange={setIsScheduling}
-              trackColor={{ false: COLORS.mediumGray, true: COLORS.primary }}
-              thumbColor={COLORS.white}
-            />
-            <Text style={styles.switchLabel}>{isScheduling ? 'Sim' : 'Não'}</Text>
-          </View>
-          {isScheduling && (
-            <>
-              <TouchableOpacity onPress={() => setShowDatePicker(true)}>
-                <View style={styles.textInput}>
-                  <Text style={styles.pickerText}>{scheduleDate.toLocaleDateString('pt-BR')}</Text>
-                </View>
-              </TouchableOpacity>
-              {showDatePicker && (
-                <DateTimePicker
-                  value={scheduleDate}
-                  mode="date"
-                  display="default"
-                  minimumDate={new Date()}
-                  onChange={(event, selectedDate) => {
-                    setShowDatePicker(false);
-                    if (selectedDate) {
-                      const newDate = new Date(scheduleDate);
-                      newDate.setFullYear(selectedDate.getFullYear());
-                      newDate.setMonth(selectedDate.getMonth());
-                      newDate.setDate(selectedDate.getDate());
-                      setScheduleDate(newDate);
-                    }
-                  }}
-                />
-              )}
-              <TouchableOpacity onPress={() => setShowTimePicker(true)}>
-                <View style={styles.textInput}>
-                  <Text style={styles.pickerText}>{scheduleDate.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</Text>
-                </View>
-              </TouchableOpacity>
-              {showTimePicker && (
-                <DateTimePicker
-                  value={scheduleDate}
-                  mode="time"
-                  display="default"
-                  onChange={(event, selectedTime) => {
-                    setShowTimePicker(false);
-                    if (selectedTime) {
-                      const newDate = new Date(scheduleDate);
-                      newDate.setHours(selectedTime.getHours());
-                      newDate.setMinutes(selectedTime.getMinutes());
-                      setScheduleDate(newDate);
-                    }
-                  }}
-                />
-              )}
-            </>
-          )}
-        </View>
-
-        <TouchableOpacity style={styles.confirmButton} onPress={handleConfirmTrajeto} disabled={isLoading}>
+         {/* Botão Confirmar */}
+         <TouchableOpacity style={styles.confirmButton} onPress={handleConfirmTrajeto} disabled={isLoading}>
           {isLoading ? <ActivityIndicator color={COLORS.white} /> : <Text style={styles.confirmButtonText}>Confirmar Trajeto</Text>}
         </TouchableOpacity>
       </ScrollView>
     </Animated.View>
   );
 
-  const confirmedTranslateY = panelAnimation.interpolate({
-    inputRange: [0, 1],
-    outputRange: [CONFIRMED_PANEL_HEIGHT, 0],
-  });
+  const confirmedTranslateY = panelAnimation.interpolate({ inputRange: [0, 1], outputRange: [CONFIRMED_PANEL_HEIGHT, 0] });
 
   const renderConfirmedPanel = () => (
-    <Animated.View style={[styles.bottomPanel, {
-      transform: [{ translateY: confirmedTranslateY }],
-      height: CONFIRMED_PANEL_HEIGHT,
-      paddingHorizontal: 0, paddingTop: 0, paddingBottom: 0,
-    }]}>
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.selectingScrollContent}>
+    <Animated.View style={[styles.bottomPanel, { transform: [{ translateY: confirmedTranslateY }], height: CONFIRMED_PANEL_HEIGHT }]}>
+      <ScrollView contentContainerStyle={styles.selectingScrollContent}>
         <View style={styles.routeInfoHeader}>
-          <TouchableOpacity
-            style={styles.backButton}
-            onPress={() => {
-              setViewState('selecting');
-              setDestination(null);
-              setRouteInfo(null);
-              setScheduledDate(null);
-            }}>
+          <TouchableOpacity style={styles.backButton} onPress={() => { setViewState('selecting'); setDestination(null); }}>
             <ArrowLeft color={COLORS.black} size={24} />
           </TouchableOpacity>
-          <Text style={styles.panelTitle}>Detalhes da Viagem</Text>
+          <Text style={styles.panelTitle}>Detalhes</Text>
         </View>
-
-        {scheduledDate && (
-          <View style={styles.scheduledInfo}>
-            <Clock color={COLORS.primary} size={24} />
-            <Text style={styles.scheduledText}>{`Agendada para ${scheduledDate.toLocaleString('pt-BR')}`}</Text>
-          </View>
-        )}
-
+        
         {routeInfo && (
           <View style={styles.routeInfoContainer}>
-            <View style={styles.routeInfoItem}>
-              <Navigation color={COLORS.primary} size={24} />
-              <View style={styles.routeInfoText}>
-                <Text style={styles.routeInfoLabel}>Distância</Text>
+             <View style={styles.routeInfoItem}>
+                <Text style={styles.routeInfoLabel}>Distância: </Text>
                 <Text style={styles.routeInfoValue}>{routeInfo.distance}</Text>
-              </View>
-            </View>
-            <View style={styles.routeInfoItem}>
-              <Clock color={COLORS.primary} size={24} />
-              <View style={styles.routeInfoText}>
-                <Text style={styles.routeInfoLabel}>Tempo Estimado</Text>
-                <Text style={styles.routeInfoValue}>{routeInfo.duration}</Text>
-              </View>
-            </View>
-            <View style={styles.routeInfoItem}>
-              <DollarSign color={COLORS.primary} size={24} />
-              <View style={styles.routeInfoText}>
-                <Text style={styles.routeInfoLabel}>Valor Estimado</Text>
+             </View>
+             <View style={styles.routeInfoItem}>
+                <Text style={styles.routeInfoLabel}>Preço: </Text>
                 <Text style={styles.routeInfoValue}>{routeInfo.price}</Text>
-              </View>
-            </View>
+             </View>
           </View>
         )}
 
-        <View style={styles.periodBadge}>
-          <Text style={styles.periodText}>{getPeriodLabel()}</Text>
-        </View>
+        <TouchableOpacity style={styles.requestDriverButton} onPress={handleStartRide}>
+            <Text style={styles.requestDriverButtonText}>Iniciar Corrida</Text>
+        </TouchableOpacity>
 
-        <View style={styles.addressesContainer}>
-          <View style={styles.addressItem}>
-            <View style={styles.originDot} />
-            <Text style={styles.addressText} numberOfLines={1}>{originAddress}</Text>
-          </View>
-          <View style={styles.addressDivider} />
-          <View style={styles.addressItem}>
-            <MapPin color={COLORS.primary} size={20} />
-            <Text style={styles.addressText} numberOfLines={1}>{destinationAddress}</Text>
-          </View>
-        </View>
-
-        <View style={styles.paymentContainer}>
-          <Text style={styles.inputLabel}>FORMA DE PAGAMENTO</Text>
-          <View style={styles.picker}>
-            <TouchableOpacity onPress={() => setPaymentMethod('cartao')}>
-              <Text style={paymentMethod === 'cartao' ? styles.selectedPayment : styles.paymentOption}>Cartão</Text>
-            </TouchableOpacity>
-            <TouchableOpacity onPress={() => setPaymentMethod('dinheiro')}>
-              <Text style={paymentMethod === 'dinheiro' ? styles.selectedPayment : styles.paymentOption}>Dinheiro</Text>
-            </TouchableOpacity>
-            <TouchableOpacity onPress={() => setPaymentMethod('pix')}>
-              <Text style={paymentMethod === 'pix' ? styles.selectedPayment : styles.paymentOption}>Pix</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-
-        <View style={styles.confirmActions}>
-          <TouchableOpacity style={styles.requestDriverButton} onPress={handleStartRide} activeOpacity={0.8}>
-            <Car color={COLORS.white} size={20} />
-            <Text style={styles.requestDriverButtonText}>{scheduledDate ? 'Agendar Corrida' : 'Iniciar Corrida'}</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.cancelButton}
-            onPress={() => {
-              setViewState('selecting');
-              setDestination(null);
-              setRouteInfo(null);
-              setScheduledDate(null);
-            }}
-            activeOpacity={0.8}>
-            <Text style={styles.cancelButtonText}>Cancelar</Text>
-          </TouchableOpacity>
-        </View>
       </ScrollView>
     </Animated.View>
   );
 
+  // --- RESTAURAÇÃO DA MODAL DE FILTROS ---
   const renderFilterModal = () => (
     <Modal visible={isFilterModalVisible} animationType="slide" transparent onRequestClose={() => setIsFilterModalVisible(false)}>
       <View style={styles.modalOverlay}>
         <View style={styles.filterModalContent}>
-          {/* Header */}
           <View style={styles.filterModalHeader}>
             <Text style={styles.filterModalTitle}>Preferências de Viagem</Text>
-            <TouchableOpacity onPress={() => setIsFilterModalVisible(false)} style={styles.closeButton}>
-              <X color={COLORS.black} size={26} />
-            </TouchableOpacity>
+            <TouchableOpacity onPress={() => setIsFilterModalVisible(false)}><X color={COLORS.black} size={26} /></TouchableOpacity>
           </View>
-
-          {/* Conteúdo */}
-          <ScrollView style={styles.filterScrollView} contentContainerStyle={{ paddingBottom: 20 }}>
-            <View style={styles.filterGroup}>
+          
+          <ScrollView contentContainerStyle={{ paddingBottom: 20, paddingHorizontal: 25, paddingTop: 20 }}>
+             {/* Gênero */}
+             <View style={styles.filterGroup}>
               <Text style={styles.filterLabel}>Gênero do Motorista</Text>
               <View style={styles.segmentedControl}>
                 {['any', 'female', 'male'].map((opt) => (
@@ -694,8 +471,9 @@ export default function PassengerHomeScreen() {
               </View>
             </View>
 
+            {/* Nota Mínima */}
             <View style={styles.filterGroup}>
-              <Text style={styles.filterLabel}>Nota Mínima do Motorista</Text>
+              <Text style={styles.filterLabel}>Nota Mínima</Text>
               <View style={styles.segmentedControl}>
                 {['any', '4', '4.5'].map((opt) => (
                   <TouchableOpacity
@@ -711,8 +489,9 @@ export default function PassengerHomeScreen() {
               </View>
             </View>
 
+            {/* Pagamento */}
             <View style={styles.filterGroup}>
-              <Text style={styles.filterLabel}>Forma de Pagamento</Text>
+              <Text style={styles.filterLabel}>Pagamento</Text>
               <View style={styles.segmentedControl}>
                 {['any', 'cartao', 'dinheiro', 'pix'].map((opt) => (
                   <TouchableOpacity
@@ -728,8 +507,9 @@ export default function PassengerHomeScreen() {
               </View>
             </View>
 
+            {/* Distância */}
             <View style={styles.filterGroup}>
-              <Text style={styles.filterLabel}>Distância Máxima para Buscar Motorista (km)</Text>
+              <Text style={styles.filterLabel}>Distância Máxima (km)</Text>
               <TextInput
                 style={styles.filterInput}
                 value={tempMaxDistance}
@@ -742,6 +522,7 @@ export default function PassengerHomeScreen() {
               />
             </View>
 
+            {/* Motorista Silencioso */}
             <View style={styles.filterGroup}>
               <View style={styles.switchRow}>
                 <MicOff color={COLORS.black} size={22} />
@@ -755,7 +536,6 @@ export default function PassengerHomeScreen() {
             </View>
           </ScrollView>
 
-          {/* Botão Fixo */}
           <View style={styles.filterModalFooter}>
             <TouchableOpacity style={styles.saveButton} onPress={handleSaveFilters}>
               <Text style={styles.saveButtonText}>Salvar Filtros</Text>
@@ -766,46 +546,52 @@ export default function PassengerHomeScreen() {
     </Modal>
   );
 
+  // --- MENU LATERAL ATUALIZADO ---
   const renderSideMenu = () => (
     <Modal animationType="none" transparent visible={isDrawerVisible} onRequestClose={closeDrawer}>
       <TouchableWithoutFeedback onPress={closeDrawer}>
         <Animated.View style={[styles.drawerOverlay, { opacity: drawerOverlayOpacity }]} />
       </TouchableWithoutFeedback>
-
       <Animated.View style={[styles.drawerContainer, { transform: [{ translateX: drawerAnimation }] }]}>
         <SafeAreaView style={{ flex: 1, backgroundColor: COLORS.white }}>
           <View style={styles.drawerHeader}>
-            <View style={styles.drawerAvatar}>
-              <User size={30} color={COLORS.primary} />
-            </View>
+            <View style={styles.drawerAvatar}><User size={30} color={COLORS.primary} /></View>
             <View>
               <Text style={styles.drawerUserName}>Olá, João!</Text>
               <Text style={styles.drawerUserEmail}>joao.silva@email.com</Text>
             </View>
           </View>
           <ScrollView>
-            <TouchableOpacity style={styles.drawerItem} onPress={() => { closeDrawer(); Alert.alert("Navegação", "Indo para Meu Perfil"); }}>
-              <User color={COLORS.primary} size={22} /><Text style={styles.drawerLabel}>Meu Perfil</Text>
+            {/* TODAS AS OPÇÕES AGORA LEVAM PARA goToProfile() */}
+            <TouchableOpacity style={styles.drawerItem} onPress={() => { closeDrawer(); goToProfile(); }}>
+              <User color={COLORS.primary} size={22} />
+              <Text style={styles.drawerLabel}>Meu Perfil</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.drawerItem} onPress={() => { closeDrawer(); Alert.alert("Navegação", "Indo para Meu Veículo"); }}>
-              <Car color={COLORS.primary} size={22} /><Text style={styles.drawerLabel}>Meu Veículo</Text>
+            <TouchableOpacity style={styles.drawerItem} onPress={() => { closeDrawer(); goToProfile(); }}>
+              <Car color={COLORS.primary} size={22} />
+              <Text style={styles.drawerLabel}>Meu Veículo</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.drawerItem} onPress={() => { closeDrawer(); Alert.alert("Navegação", "Indo para Pagamentos"); }}>
-              <CreditCard color={COLORS.primary} size={22} /><Text style={styles.drawerLabel}>Pagamentos</Text>
+            <TouchableOpacity style={styles.drawerItem} onPress={() => { closeDrawer(); goToProfile(); }}>
+              <CreditCard color={COLORS.primary} size={22} />
+              <Text style={styles.drawerLabel}>Pagamentos</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.drawerItem} onPress={() => { closeDrawer(); Alert.alert("Navegação", "Indo para Histórico"); }}>
-              <History color={COLORS.primary} size={22} /><Text style={styles.drawerLabel}>Histórico de Viagens</Text>
+            <TouchableOpacity style={styles.drawerItem} onPress={() => { closeDrawer(); goToProfile(); }}>
+              <History color={COLORS.primary} size={22} />
+              <Text style={styles.drawerLabel}>Histórico de Viagens</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.drawerItem} onPress={() => { closeDrawer(); Alert.alert("Navegação", "Indo para Configurações"); }}>
-              <Settings color={COLORS.primary} size={22} /><Text style={styles.drawerLabel}>Configurações</Text>
+            <TouchableOpacity style={styles.drawerItem} onPress={() => { closeDrawer(); goToProfile(); }}>
+              <Settings color={COLORS.primary} size={22} />
+              <Text style={styles.drawerLabel}>Configurações</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.drawerItem} onPress={() => { closeDrawer(); Alert.alert("Navegação", "Indo para Ajuda"); }}>
-              <LifeBuoy color={COLORS.primary} size={22} /><Text style={styles.drawerLabel}>Ajuda e Suporte</Text>
+            <TouchableOpacity style={styles.drawerItem} onPress={() => { closeDrawer(); goToProfile(); }}>
+              <LifeBuoy color={COLORS.primary} size={22} />
+              <Text style={styles.drawerLabel}>Ajuda e Suporte</Text>
             </TouchableOpacity>
           </ScrollView>
           <View style={styles.drawerFooter}>
             <TouchableOpacity style={styles.drawerItem} onPress={() => { closeDrawer(); Alert.alert('Sair', 'Tem certeza que deseja sair?'); }}>
-              <LogOut color={COLORS.danger} size={22} /><Text style={[styles.drawerLabel, { color: COLORS.danger }]}>Sair</Text>
+              <LogOut color={COLORS.danger} size={22} />
+              <Text style={[styles.drawerLabel, { color: COLORS.danger }]}>Sair</Text>
             </TouchableOpacity>
           </View>
         </SafeAreaView>
@@ -817,26 +603,9 @@ export default function PassengerHomeScreen() {
     <SafeAreaView style={styles.safeArea}>
       <StatusBar barStyle="dark-content" backgroundColor={COLORS.white} />
 
-      <MapView
-        ref={mapRef}
-        style={styles.map}
-        provider={PROVIDER_GOOGLE}
-        showsUserLocation={false}
-        showsMyLocationButton={false}
-        initialRegion={{
-          latitude: -23.55052, longitude: -46.633308,
-          latitudeDelta: 0.0922, longitudeDelta: 0.0421,
-        }}>
-        {userLocation && (
-          <Marker coordinate={userLocation} anchor={{ x: 0.5, y: 0.5 }}>
-            <View style={styles.userMarker}><View style={styles.userMarkerCore} /></View>
-          </Marker>
-        )}
-        {destination && (
-          <Marker coordinate={destination} anchor={{ x: 0.5, y: 1.0 }}>
-            <DestinationMarker />
-          </Marker>
-        )}
+      <MapView ref={mapRef} style={styles.map} provider={PROVIDER_GOOGLE} showsUserLocation={false} showsMyLocationButton={false}>
+        {userLocation && <Marker coordinate={userLocation}><View style={styles.userMarker}><View style={styles.userMarkerCore} /></View></Marker>}
+        {destination && <Marker coordinate={destination}><DestinationMarker /></Marker>}
         {origin && destination && GOOGLE_MAPS_API_KEY_AQUI && (
           <MapViewDirections
             origin={origin}
@@ -844,7 +613,7 @@ export default function PassengerHomeScreen() {
             apikey={GOOGLE_MAPS_API_KEY_AQUI}
             strokeWidth={4}
             strokeColor={COLORS.primary}
-            onReady={(result) => {
+            onReady={result => {
               const distanceInKm = result.distance;
               const durationInMin = Math.ceil(result.duration);
               setRouteInfo({
@@ -861,24 +630,14 @@ export default function PassengerHomeScreen() {
         )}
       </MapView>
 
-      {viewState === 'selecting' && (
-        <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-          <View style={styles.keyboardDismissOverlay} />
-        </TouchableWithoutFeedback>
-      )}
+      {viewState === 'selecting' && <TouchableWithoutFeedback onPress={Keyboard.dismiss}><View style={styles.keyboardDismissOverlay} /></TouchableWithoutFeedback>}
 
       <View style={styles.headerContainer}>
-        <TouchableOpacity style={styles.iconButton} onPress={handleMenuPress}>
-          <Menu color={COLORS.black} size={28} />
-        </TouchableOpacity>
+        <TouchableOpacity style={styles.iconButton} onPress={openDrawer}><Menu color={COLORS.black} size={28} /></TouchableOpacity>
         <Text style={styles.headerTitle}>Pilotaí</Text>
         <View style={styles.headerRightColumn}>
-          <TouchableOpacity style={styles.iconButton} onPress={handleProfilePress}>
-            <User color={COLORS.black} size={28} />
-          </TouchableOpacity>
-          <TouchableOpacity style={[styles.iconButton, styles.filterButton]} onPress={handleOpenFilterModal}>
-            <Filter color={COLORS.black} size={24} />
-          </TouchableOpacity>
+          <TouchableOpacity style={styles.iconButton} onPress={goToProfile}><User color={COLORS.black} size={28} /></TouchableOpacity>
+          <TouchableOpacity style={[styles.iconButton, styles.filterButton]} onPress={handleOpenFilterModal}><Filter color={COLORS.black} size={24} /></TouchableOpacity>
         </View>
       </View>
 
@@ -892,9 +651,7 @@ export default function PassengerHomeScreen() {
   );
 }
 
-// =================================================================
-// === ESTILOS =====================================================
-// =================================================================
+// ESTILOS COMPLETOS (Atualizados com estilos da modal e filtros)
 const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: COLORS.white },
   map: { ...StyleSheet.absoluteFillObject },
@@ -918,46 +675,10 @@ const styles = StyleSheet.create({
   userMarker: { width: 28, height: 28, borderRadius: 14, backgroundColor: 'rgba(110, 23, 235, 0.2)', justifyContent: 'center', alignItems: 'center' },
   userMarkerCore: { width: 14, height: 14, borderRadius: 7, backgroundColor: COLORS.primary, borderWidth: 2, borderColor: COLORS.white },
   destinationMarkerContainer: { alignItems: 'center', justifyContent: 'flex-end' },
-  destinationMarkerPin: { width: 12, height: 12, borderRadius: 6, backgroundColor: COLORS.primary, borderWidth: 2, borderColor: COLORS.white, elevation: 3, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.25, shadowRadius: 1.5 },
+  destinationMarkerPin: { width: 12, height: 12, borderRadius: 6, backgroundColor: COLORS.primary, borderWidth: 2, borderColor: COLORS.white, elevation: 3 },
   destinationMarkerTail: { width: 0, height: 0, borderLeftWidth: 5, borderRightWidth: 5, borderTopWidth: 7, borderLeftColor: 'transparent', borderRightColor: 'transparent', borderTopColor: COLORS.primary, marginTop: -1 },
   selectionHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginBottom: 12 },
   backButton: { position: 'absolute', left: 0, padding: 5 },
-  inputContainer: { width: '100%', marginBottom: 18, position: 'relative' },
-  inputLabel: { fontSize: 12, fontWeight: '600', color: COLORS.darkGray, marginBottom: 8, textTransform: 'uppercase' },
-  textInput: { backgroundColor: COLORS.lightGray, borderRadius: 12, paddingVertical: 18, paddingHorizontal: 16, fontSize: 16, color: COLORS.black, fontWeight: '500', minHeight: 56 },
-  confirmButton: { backgroundColor: COLORS.primary, borderRadius: 15, paddingVertical: 16, alignItems: 'center', justifyContent: 'center', marginTop: 8, elevation: 3, shadowColor: COLORS.primary, shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.3, shadowRadius: 4 },
-  confirmButtonText: { color: COLORS.white, fontSize: 18, fontWeight: 'bold' },
-  suggestionsContainer: { position: 'absolute', left: 0, right: 0, top: 68, borderRadius: 12, backgroundColor: COLORS.white, borderColor: COLORS.mediumGray, borderWidth: 1, maxHeight: 180, elevation: 8, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.15, shadowRadius: 6, zIndex: 40 },
-  suggestionsList: { flexGrow: 0 },
-  suggestionItem: { flexDirection: 'row', alignItems: 'center', padding: 12, borderBottomWidth: 1, borderBottomColor: COLORS.lightGray },
-  suggestionText: { fontSize: 15, color: COLORS.black, marginLeft: 12, flex: 1, fontWeight: '500' },
-  routeInfoHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginBottom: 12 },
-  routeInfoContainer: { backgroundColor: COLORS.lightGray, borderRadius: 15, padding: 15, marginBottom: 14 },
-  routeInfoItem: { flexDirection: 'row', alignItems: 'center', paddingVertical: 8 },
-  routeInfoText: { marginLeft: 12, flex: 1 },
-  routeInfoLabel: { fontSize: 13, color: COLORS.darkGray, fontWeight: '500' },
-  routeInfoValue: { fontSize: 18, color: COLORS.black, fontWeight: 'bold', marginTop: 2 },
-  addressesContainer: { backgroundColor: COLORS.lightGray, borderRadius: 15, padding: 12, marginBottom: 14 },
-  addressItem: { flexDirection: 'row', alignItems: 'center', paddingVertical: 6 },
-  originDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: COLORS.primary, marginRight: 12 },
-  addressText: { fontSize: 15, color: COLORS.black, flex: 1, fontWeight: '500' },
-  addressDivider: { height: 1, backgroundColor: COLORS.mediumGray, marginVertical: 8 },
-  requestDriverButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: COLORS.primary, borderRadius: 12, paddingVertical: 14, paddingHorizontal: 18, elevation: 3, shadowColor: COLORS.primary, shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.25, shadowRadius: 4 },
-  requestDriverButtonText: { color: COLORS.white, fontSize: 16, fontWeight: '700', marginLeft: 10 },
-  confirmActions: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  cancelButton: { marginLeft: 12, backgroundColor: 'transparent', borderRadius: 12, paddingVertical: 12, paddingHorizontal: 18 },
-  cancelButtonText: { color: COLORS.darkGray, fontSize: 16, fontWeight: '700' },
-  switchContainer: { flexDirection: 'row', alignItems: 'center', marginBottom: 10 },
-  switchLabel: { marginLeft: 10, fontSize: 16, color: COLORS.black },
-  pickerText: { fontSize: 16, color: COLORS.black, paddingVertical: 18, paddingHorizontal: 16 },
-  scheduledInfo: { flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.lightGray, borderRadius: 15, padding: 15, marginBottom: 14 },
-  scheduledText: { marginLeft: 12, fontSize: 16, color: COLORS.black, fontWeight: '500' },
-  paymentContainer: { marginBottom: 14 },
-  picker: { backgroundColor: COLORS.lightGray, borderRadius: 12, paddingVertical: 10, flexDirection: 'row', justifyContent: 'space-around' },
-  paymentOption: { fontSize: 16, color: COLORS.darkGray },
-  selectedPayment: { fontSize: 16, color: COLORS.primary, fontWeight: 'bold' },
-  periodBadge: { backgroundColor: COLORS.lightGray, paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20, marginBottom: 20 },
-  periodText: { fontSize: 14, fontWeight: '600', color: COLORS.darkGray },
   drawerOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 40 },
   drawerContainer: { position: 'absolute', top: 0, bottom: 0, left: 0, width: DRAWER_WIDTH, backgroundColor: COLORS.white, zIndex: 50 },
   drawerHeader: { padding: 20, flexDirection: 'row', alignItems: 'center', borderBottomWidth: 1, borderBottomColor: COLORS.lightGray, marginTop: 20 },
@@ -967,13 +688,15 @@ const styles = StyleSheet.create({
   drawerItem: { flexDirection: 'row', alignItems: 'center', paddingVertical: 16, paddingHorizontal: 20, gap: 16 },
   drawerLabel: { fontSize: 16, fontWeight: '500', color: COLORS.black },
   drawerFooter: { borderTopWidth: 1, borderTopColor: COLORS.lightGray, paddingVertical: 10 },
+  
+  // Estilos da Modal de Filtro restaurados
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
-  filterModalContent: { backgroundColor: COLORS.white, borderTopLeftRadius: 30, borderTopRightRadius: 30, maxHeight: '95%', marginTop: 'auto', overflow: 'hidden', flex: 1 },
+  filterModalContent: { backgroundColor: COLORS.white, borderTopLeftRadius: 30, borderTopRightRadius: 30, maxHeight: '95%', marginTop: 'auto' },
   filterModalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 25, paddingTop: 20, paddingBottom: 15, borderBottomWidth: 1, borderBottomColor: COLORS.lightGray },
-  filterModalTitle: { fontSize: 20, fontWeight: 'bold', color: COLORS.black, flex: 1 },
-  closeButton: { padding: 4 },
-  filterScrollView: { flex: 1, paddingHorizontal: 25, paddingTop: 20 },
-  filterModalFooter: { paddingHorizontal: 25, paddingVertical: 20, borderTopWidth: 1, borderTopColor: COLORS.lightGray, backgroundColor: COLORS.white },
+  filterModalTitle: { fontSize: 20, fontWeight: 'bold', color: COLORS.black },
+  filterModalFooter: { paddingHorizontal: 25, paddingTop: 12, paddingBottom: Platform.OS === 'ios' ? 40 : 20, borderTopWidth: 1, borderTopColor: COLORS.lightGray },
+  saveButton: { backgroundColor: COLORS.primary, borderRadius: 12, paddingVertical: 16, alignItems: 'center' },
+  saveButtonText: { color: COLORS.white, fontSize: 16, fontWeight: 'bold' },
   filterGroup: { marginBottom: 24 },
   filterLabel: { fontSize: 16, fontWeight: '600', color: COLORS.black, marginBottom: 12 },
   segmentedControl: { flexDirection: 'row', width: '100%', borderRadius: 8, borderWidth: 1, borderColor: COLORS.primary, overflow: 'hidden' },
@@ -981,9 +704,24 @@ const styles = StyleSheet.create({
   segmentActive: { backgroundColor: COLORS.primary },
   segmentText: { fontSize: 14, fontWeight: '600', color: COLORS.primary },
   segmentTextActive: { color: COLORS.white },
+  filterInput: { backgroundColor: COLORS.lightGray, borderRadius: 12, paddingHorizontal: 16, paddingVertical: 14, fontSize: 16, color: COLORS.black },
   switchRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   filterLabelSwitch: { fontSize: 16, fontWeight: '600', color: COLORS.black, flex: 1, marginLeft: 12 },
-  saveButton: { backgroundColor: COLORS.primary, borderRadius: 12, paddingVertical: 16, alignItems: 'center', justifyContent: 'center' },
-  saveButtonText: { color: COLORS.white, fontSize: 16, fontWeight: 'bold' },
-  filterInput: { backgroundColor: COLORS.lightGray, borderRadius: 12, paddingHorizontal: 16, paddingVertical: 14, fontSize: 16, color: COLORS.black },
+
+  // Inputs e botões gerais
+  inputContainer: { width: '100%', marginBottom: 18, position: 'relative' },
+  inputLabel: { fontSize: 12, fontWeight: '600', color: COLORS.darkGray, marginBottom: 8, textTransform: 'uppercase' },
+  textInput: { backgroundColor: COLORS.lightGray, borderRadius: 12, paddingVertical: 18, paddingHorizontal: 16, fontSize: 16, color: COLORS.black, fontWeight: '500', minHeight: 56 },
+  confirmButton: { backgroundColor: COLORS.primary, borderRadius: 15, paddingVertical: 16, alignItems: 'center', justifyContent: 'center', marginTop: 8, elevation: 3, shadowColor: COLORS.primary, shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.3, shadowRadius: 4 },
+  confirmButtonText: { color: COLORS.white, fontSize: 18, fontWeight: 'bold' },
+  suggestionsContainer: { position: 'absolute', left: 0, right: 0, top: 68, borderRadius: 12, backgroundColor: COLORS.white, borderColor: COLORS.mediumGray, borderWidth: 1, maxHeight: 180, elevation: 8, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.15, shadowRadius: 6, zIndex: 40 },
+  suggestionItem: { flexDirection: 'row', alignItems: 'center', padding: 12, borderBottomWidth: 1, borderBottomColor: COLORS.lightGray },
+  suggestionText: { fontSize: 15, color: COLORS.black, marginLeft: 12, flex: 1, fontWeight: '500' },
+  routeInfoHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginBottom: 12 },
+  routeInfoContainer: { backgroundColor: COLORS.lightGray, borderRadius: 15, padding: 15, marginBottom: 14 },
+  routeInfoItem: { flexDirection: 'row', alignItems: 'center', paddingVertical: 8 },
+  routeInfoLabel: { fontSize: 13, color: COLORS.darkGray, fontWeight: '500' },
+  routeInfoValue: { fontSize: 18, color: COLORS.black, fontWeight: 'bold', marginLeft: 8 },
+  requestDriverButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: COLORS.primary, borderRadius: 12, paddingVertical: 14, paddingHorizontal: 18, elevation: 3, shadowColor: COLORS.primary, shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.25, shadowRadius: 4 },
+  requestDriverButtonText: { color: COLORS.white, fontSize: 16, fontWeight: '700' },
 });

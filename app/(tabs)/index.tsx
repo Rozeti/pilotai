@@ -1,5 +1,6 @@
 import 'react-native-gesture-handler';
 import React, { useState } from 'react';
+import { useNavigation } from '@react-navigation/native'; // <--- ADICIONADO: Import da navegação
 import {
   SafeAreaView,
   ScrollView,
@@ -121,6 +122,9 @@ const IconInput = ({
 };
 
 export default function LoginScreen() {
+  // --- ALTERAÇÃO 1: Hook de navegação ---
+  const navigation = useNavigation<any>();
+  
   const [userType, setUserType] = useState('passenger');
   const [isLogin, setIsLogin] = useState(true);
   const [showPassword, setShowPassword] = useState(false);
@@ -200,14 +204,38 @@ export default function LoginScreen() {
     }));
   };
 
+  // --- ALTERAÇÃO 2: Lógica de Redirecionamento no Submit ---
   const handleSubmit = () => {
     console.log('Form submitted:', { userType, isLogin, formData });
-    Alert.alert(
-      `${isLogin ? 'Login' : 'Cadastro'} como ${
-        userType === 'passenger' ? 'Passageiro' : 'Motorista'
-      }`,
-      `Email: ${formData.email}`
-    );
+    
+    // Se estiver na aba de Login
+    if (isLogin) {
+        // Aqui você futuramente adicionará a validação de senha com o backend
+        
+        if (userType === 'passenger') {
+            // Redireciona para a tela do Passageiro
+            // Obs: O nome dentro de navigate deve ser igual ao 'name' definido no seu App.tsx
+            navigation.navigate('PassengerHomeScreen'); 
+        } else if (userType === 'driver') {
+            // Redireciona para a tela do Motorista
+            navigation.navigate('DriverHomeScreen');
+        }
+    } 
+    // Se estiver na aba de Cadastro
+    else {
+        Alert.alert(
+            'Cadastro realizado',
+            `Bem-vindo(a)! Seu cadastro como ${
+              userType === 'passenger' ? 'Passageiro' : 'Motorista'
+            } foi recebido.`,
+            [
+                { 
+                    text: 'Ir para Login', 
+                    onPress: () => setIsLogin(true) // Muda a aba para login automaticamente
+                }
+            ]
+        );
+    }
   };
 
   return (
