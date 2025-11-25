@@ -1,5 +1,5 @@
 import * as Location from 'expo-location';
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, useCallback } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -48,7 +48,7 @@ import {
 } from 'lucide-react-native';
 
 // NAVEGAÇÃO
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
 
 // Cores do projeto
 const COLORS = {
@@ -192,6 +192,21 @@ export default function PassengerHomeScreen() {
     })();
   }, []);
 
+  // Resetar para localização atual ao focar na tela
+  useFocusEffect(
+    useCallback(() => {
+      resetAddressFields();
+      if (userLocation) {
+        mapRef.current?.animateToRegion({
+          latitude: userLocation.latitude,
+          longitude: userLocation.longitude,
+          latitudeDelta: 0.01,
+          longitudeDelta: 0.01,
+        }, 1000);
+      }
+    }, [userLocation])
+  );
+
   // Animação do painel
   useEffect(() => {
     Animated.spring(panelAnimation, {
@@ -283,6 +298,13 @@ export default function PassengerHomeScreen() {
       setDestination(finalDest);
       setViewState('confirmed');
       setScheduledDate(isScheduling ? scheduleDate : null);
+      // Atualizar o mapa para focar na nova origem se alterada
+      mapRef.current?.animateToRegion({
+        latitude: finalOrigin.latitude,
+        longitude: finalOrigin.longitude,
+        latitudeDelta: 0.01,
+        longitudeDelta: 0.01,
+      }, 1000);
     }
     setIsLoading(false);
   };
@@ -320,6 +342,20 @@ export default function PassengerHomeScreen() {
     setPaymentPreference(tempPaymentPreference);
     setMaxDistance(tempMaxDistance.trim() === '' ? 'any' : tempMaxDistance);
     setIsFilterModalVisible(false);
+  };
+
+  const onDateChange = (event: any, selectedDate?: Date) => {
+    const currentDate = selectedDate || scheduleDate;
+    setShowDatePicker(Platform.OS === 'ios');
+    setScheduleDate(currentDate);
+    setShowTimePicker(true); // Mostra o picker de hora após a data
+  };
+
+  const onTimeChange = (event: any, selectedTime?: Date) => {
+    const currentDate = selectedTime || scheduleDate;
+    setShowTimePicker(Platform.OS === 'ios');
+    setScheduleDate(currentDate);
+    setScheduledDate(currentDate);
   };
 
   // RENDER PANELS (mantidos como no seu original)
@@ -434,8 +470,54 @@ export default function PassengerHomeScreen() {
           </View>
         )}
 
+        {/* Opção de Agendamento */}
+        <View style={styles.scheduleContainer}>
+          <Text style={styles.scheduleLabel}>Agendar para mais tarde</Text>
+          <Switch
+            value={isScheduling}
+            onValueChange={(value) => {
+              setIsScheduling(value);
+              if (value) {
+                setShowDatePicker(true);
+              } else {
+                setScheduledDate(null);
+              }
+            }}
+            trackColor={{ false: COLORS.mediumGray, true: COLORS.primary }}
+          />
+        </View>
+
+        {isScheduling && (
+          <View style={styles.schedulePickerContainer}>
+            {showDatePicker && (
+              <DateTimePicker
+                value={scheduleDate}
+                mode="date"
+                display="default"
+                onChange={onDateChange}
+                minimumDate={new Date()}
+              />
+            )}
+            {showTimePicker && (
+              <DateTimePicker
+                value={scheduleDate}
+                mode="time"
+                display="default"
+                onChange={onTimeChange}
+              />
+            )}
+            {scheduledDate && (
+              <Text style={styles.scheduledDateText}>
+                Agendado para: {scheduledDate.toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })}
+              </Text>
+            )}
+          </View>
+        )}
+
         <TouchableOpacity style={styles.requestDriverButton} onPress={handleStartRide}>
-            <Text style={styles.requestDriverButtonText}>Iniciar Corrida</Text>
+            <Text style={styles.requestDriverButtonText}>
+              {isScheduling ? 'Agendar Corrida' : 'Iniciar Corrida'}
+            </Text>
         </TouchableOpacity>
 
       </ScrollView>
@@ -604,7 +686,7 @@ export default function PassengerHomeScreen() {
       <StatusBar barStyle="dark-content" backgroundColor={COLORS.white} />
 
       <MapView ref={mapRef} style={styles.map} provider={PROVIDER_GOOGLE} showsUserLocation={false} showsMyLocationButton={false}>
-        {userLocation && <Marker coordinate={userLocation}><View style={styles.userMarker}><View style={styles.userMarkerCore} /></View></Marker>}
+        {origin && <Marker coordinate={origin}><View style={styles.userMarker}><View style={styles.userMarkerCore} /></View></Marker>}
         {destination && <Marker coordinate={destination}><DestinationMarker /></Marker>}
         {origin && destination && GOOGLE_MAPS_API_KEY_AQUI && (
           <MapViewDirections
@@ -724,4 +806,10 @@ const styles = StyleSheet.create({
   routeInfoValue: { fontSize: 18, color: COLORS.black, fontWeight: 'bold', marginLeft: 8 },
   requestDriverButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: COLORS.primary, borderRadius: 12, paddingVertical: 14, paddingHorizontal: 18, elevation: 3, shadowColor: COLORS.primary, shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.25, shadowRadius: 4 },
   requestDriverButtonText: { color: COLORS.white, fontSize: 16, fontWeight: '700' },
+
+  // Novos estilos para agendamento
+  scheduleContainer: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 },
+  scheduleLabel: { fontSize: 16, fontWeight: '600', color: COLORS.black },
+  schedulePickerContainer: { marginBottom: 16 },
+  scheduledDateText: { fontSize: 14, color: COLORS.darkGray, marginTop: 8, textAlign: 'center' },
 });

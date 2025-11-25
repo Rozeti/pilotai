@@ -12,6 +12,7 @@ import {
   Switch,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useNavigation } from '@react-navigation/native';
 import {
   ArrowLeft,
   User,
@@ -32,9 +33,9 @@ import {
   LogOut,
   Settings,
   Calendar,
-  CreditCard, // ADICIONADO
-  ClipboardList, // ADICIONADO
-  LifeBuoy, // ADICIONADO
+  CreditCard,
+  ClipboardList,
+  LifeBuoy,
 } from 'lucide-react-native';
 
 // === CORES ===
@@ -95,6 +96,7 @@ const MOCK_HISTORY = [
 
 export default function PassengerProfileScreen() {
   const insets = useSafeAreaInsets();
+  const navigation = useNavigation<any>();
 
   // === MODAIS ===
   const [showEditModal, setShowEditModal] = useState(false);
@@ -133,10 +135,19 @@ export default function PassengerProfileScreen() {
     Alert.alert('Sucesso', 'Veículo atualizado com sucesso!');
   };
 
+  const handleBackPress = () => {
+    navigation.navigate('PassengerHomeScreen');
+  };
+
   const handleLogout = () => {
     Alert.alert('Sair da Conta', 'Tem certeza?', [
       { text: 'Cancelar', style: 'cancel' },
-      { text: 'Sair', style: 'destructive', onPress: () => console.log('Logout') },
+      { text: 'Sair', style: 'destructive', onPress: () => {
+        navigation.reset({
+          index: 0,
+          routes: [{ name: 'index' }],
+        });
+      } },
     ]);
   };
 
@@ -346,7 +357,6 @@ export default function PassengerProfileScreen() {
               <CreditCard color={COLORS.primary} size={20} />
               <View style={styles.infoText}>
                 <Text style={styles.infoLabel}>{MOCK_PAYMENT_DATA.savedCard.brand}</Text>
-                {/* === CORREÇÃO 4 === */}
                 <Text style={styles.infoValue}>{`**** **** **** ${MOCK_PAYMENT_DATA.savedCard.last4}`}</Text>
               </View>
               <TouchableOpacity>
@@ -409,7 +419,7 @@ export default function PassengerProfileScreen() {
     <>
       {/* HEADER */}
       <View style={[styles.header, { paddingTop: insets.top }]}>
-        <TouchableOpacity style={styles.backButton} onPress={() => console.log('Voltar')}>
+        <TouchableOpacity style={styles.backButton} onPress={handleBackPress}>
           <ArrowLeft color={COLORS.black} size={24} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Meu Perfil</Text>
@@ -498,11 +508,9 @@ export default function PassengerProfileScreen() {
                 </View>
               </View>
               <View style={styles.vehicleInfo}>
-                {/* === CORREÇÃO 1 === */}
                 <Text style={styles.vehicleModel}>
                   {`${editedVehicle.brand} ${editedVehicle.model} | ${editedVehicle.year}`}
                 </Text>
-                {/* === CORREÇÃO 2 === */}
                 <Text style={styles.vehicleColor}>{`Cor: ${editedVehicle.color}`}</Text>
               </View>
               <TouchableOpacity style={styles.editVehicleButton} onPress={() => setShowVehicleModal(true)}>
@@ -536,7 +544,7 @@ export default function PassengerProfileScreen() {
             <View style={styles.sectionHeader}>
               <Text style={styles.sectionTitle}>Histórico Recente</Text>
               <TouchableOpacity>
-                <Text style={styles.seeAllText}>Ver Tudo</Text>
+                <Text style={styles.seeAllText}>Ver Todo</Text>
               </TouchableOpacity>
             </View>
             {MOCK_HISTORY.map((ride) => (
@@ -546,7 +554,6 @@ export default function PassengerProfileScreen() {
                 </View>
                 <View style={styles.historyDetails}>
                   <Text style={styles.historyDate}>{ride.date}</Text>
-                  {/* === CORREÇÃO 3 === */}
                   <Text style={styles.historyRoute}>{`${ride.from} → ${ride.to}`}</Text>
                 </View>
                 <View style={styles.historyRight}>
@@ -623,7 +630,7 @@ export default function PassengerProfileScreen() {
   );
 }
 
-// === ESTILOS ===
+// === ESTILOS COMPLETOS ===
 const styles = StyleSheet.create({
   header: {
     flexDirection: 'row',
@@ -680,17 +687,6 @@ const styles = StyleSheet.create({
   statValue: { fontSize: 18, fontWeight: 'bold', color: COLORS.black, marginTop: 4 },
   statLabel: { fontSize: 12, color: COLORS.darkGray },
   statDivider: { width: 1, backgroundColor: COLORS.mediumGray },
-  cnhContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    backgroundColor: COLORS.lightGray,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 8,
-    marginBottom: 16,
-  },
-  cnhText: { fontSize: 14, color: COLORS.black, fontWeight: '600' },
   cnhStatus: { paddingHorizontal: 8, paddingVertical: 2, borderRadius: 12 },
   cnhValid: { backgroundColor: COLORS.success + '20' },
   cnhInvalid: { backgroundColor: COLORS.danger + '20' },
@@ -866,8 +862,6 @@ const styles = StyleSheet.create({
   },
   settingLeft: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   settingTitle: { fontSize: 16, fontWeight: '600', color: COLORS.black },
-  
-  // === NOVOS ESTILOS: MODAL DE PAGAMENTO ===
   removeText: {
     color: COLORS.danger,
     fontWeight: '600',
