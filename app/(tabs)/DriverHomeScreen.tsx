@@ -17,6 +17,8 @@ import {
   LifeBuoy,
   MicOff,
   CreditCard,
+  Star,
+  Flag,
 } from 'lucide-react-native';
 import React, { useEffect, useRef, useState } from 'react';
 import {
@@ -36,7 +38,9 @@ import {
   TouchableWithoutFeedback,
   TextInput,
 } from 'react-native';
-import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
+import MapView, { Marker, PROVIDER_GOOGLE, Polyline } from 'react-native-maps';
+// Certifique-se de ter rodado: npm install react-native-maps-directions
+import MapViewDirections from 'react-native-maps-directions'; 
 import { useNavigation } from '@react-navigation/native';
 
 const COLORS = {
@@ -53,11 +57,14 @@ const COLORS = {
 };
 
 // CONFIGURAÇÃO
-const GOOGLE_MAPS_API_KEY_AQUI = process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY;
+// A CORREÇÃO ESTÁ AQUI: Adicionamos '|| ""' para garantir que seja sempre uma string
+const GOOGLE_MAPS_API_KEY_AQUI = process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY || "";
+
+// LOCALIZAÇÃO: BRASÍLIA (Rodoviária do Plano Piloto como referência central)
 const FALLBACK_LOCATION: Location.LocationObjectCoords = {
-  latitude: -23.55052,
-  longitude: -46.633308,
-  altitude: 0,
+  latitude: -15.794229,
+  longitude: -47.882166,
+  altitude: 1172,
   accuracy: 1,
   altitudeAccuracy: 1,
   heading: 0,
@@ -88,29 +95,33 @@ const getPeriodLabel = (): string => {
   return 'Diurno';
 };
 
-// DADOS MOCKADOS
+// DADOS MOCKADOS (Endereços de Brasília)
 const MOCK_REQUESTS = [
   {
     id: 'req1',
     passengerName: 'Ana Silva',
-    pickupAddress: 'Rua Augusta, 500 - Consolação',
-    destinationAddress: 'Av. Paulista, 1500 - Bela Vista',
+    pickupAddress: 'SQN 208 Bloco A - Asa Norte',
+    destinationAddress: 'ParkShopping - Guará',
     distanceToPickup: 1.2,
-    tripDistance: 3.5,
-    estimatedDuration: 15,
-    pickupCoords: { latitude: -23.555, longitude: -46.645 },
-    destinationCoords: { latitude: -23.561, longitude: -46.656 },
+    tripDistance: 12.5,
+    estimatedDuration: 20,
+    // Coordenadas Asa Norte
+    pickupCoords: { latitude: -15.776735, longitude: -47.878566 },
+    // Coordenadas ParkShopping
+    destinationCoords: { latitude: -15.835489, longitude: -47.954752 },
   },
   {
     id: 'req2',
     passengerName: 'Carlos Souza',
-    pickupAddress: 'Rua Oscar Freire, 200 - Jardins',
-    destinationAddress: 'Parque Ibirapuera - Vila Mariana',
+    pickupAddress: 'Aeroporto Internacional de Brasília',
+    destinationAddress: 'Setor Hoteleiro Norte',
     distanceToPickup: 3.5,
-    tripDistance: 7.8,
+    tripDistance: 15.2,
     estimatedDuration: 25,
-    pickupCoords: { latitude: -23.558, longitude: -46.669 },
-    destinationCoords: { latitude: -23.588, longitude: -46.658 },
+    // Coordenadas Aeroporto
+    pickupCoords: { latitude: -15.869752, longitude: -47.917227 },
+    // Coordenadas SHN
+    destinationCoords: { latitude: -15.789173, longitude: -47.887856 },
   },
 ];
 
@@ -206,6 +217,11 @@ export default function DriverHomeScreen() {
   const [rideStage, setRideStage] = useState<RideStage | null>(null);
   const [tracksViewChanges, setTracksViewChanges] = useState(true);
 
+  // Modal de Avaliação
+  const [isRatingModalVisible, setIsRatingModalVisible] = useState(false);
+  const [passengerRating, setPassengerRating] = useState(0);
+  const [ratingComment, setRatingComment] = useState('');
+
   // Drawer
   const [isDrawerVisible, setIsDrawerVisible] = useState(false);
   const drawerAnimation = useRef(new Animated.Value(-DRAWER_WIDTH)).current;
@@ -248,7 +264,11 @@ export default function DriverHomeScreen() {
       );
       const initial = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High });
       setDriverLocation(initial.coords);
-      mapRef.current?.animateToRegion({ ...initial.coords, latitudeDelta: 0.02, longitudeDelta: 0.02 }, 1000);
+      
+      // Centralizar em Brasília se não tiver pego a localização real ainda ou na localização do user
+      const initialRegion = initial.coords ? initial.coords : FALLBACK_LOCATION;
+
+      mapRef.current?.animateToRegion({ ...initialRegion, latitudeDelta: 0.02, longitudeDelta: 0.02 }, 1000);
     })();
     return () => subscription?.remove();
   }, []);
@@ -257,7 +277,7 @@ export default function DriverHomeScreen() {
   useEffect(() => {
     let interval: any;
     if (availabilityStatus === 'available') {
-      interval = setInterval(() => setIncomingRequests([...MOCK_REQUESTS]), 12000);
+      interval = setInterval(() => setIncomingRequests([...MOCK_REQUESTS]), 5000); // Reduzi tempo pra testar mais rápido
     } else {
       setIncomingRequests([]);
     }
@@ -272,14 +292,89 @@ export default function DriverHomeScreen() {
   }, [driverLocation]);
 
   // Ações
-  const handleToggleAvailability = () => setAvailabilityStatus(prev => prev === 'unavailable' ? 'available' : 'unavailable');
+  const handleToggleAvailability = () => {
+    if (availabilityStatus === 'on_ride') {
+      Alert.alert('Atenção', 'Você está em uma corrida. Finalize-a antes de ficar offline.');
+      return;
+    }
+    setAvailabilityStatus(prev => prev === 'unavailable' ? 'available' : 'unavailable');
+    if (currentRide) {
+      setCurrentRide(null);
+      setRideStage(null);
+    }
+  };
+
   const handleAcceptRequest = (req: any) => {
     setCurrentRide(req);
     setAvailabilityStatus('on_ride');
     setRideStage('going_to_pickup');
     setIncomingRequests([]);
+    
+    // Ajustar zoom para mostrar motorista e pickup
+    if (driverLocation && req.pickupCoords) {
+      mapRef.current?.fitToCoordinates([
+        { latitude: driverLocation.latitude, longitude: driverLocation.longitude },
+        req.pickupCoords
+      ], {
+        edgePadding: { top: 100, right: 50, bottom: 200, left: 50 },
+        animated: true,
+      });
+    }
   };
+
   const handleDeclineRequest = (id: string) => setIncomingRequests(prev => prev.filter(r => r.id !== id));
+
+  // Ações da Corrida
+  const handleArrivedAtPickup = () => {
+      setRideStage('arrived_at_pickup');
+      // Focar no passageiro
+      if(currentRide?.pickupCoords) {
+        mapRef.current?.animateToRegion({
+            ...currentRide.pickupCoords,
+            latitudeDelta: 0.005,
+            longitudeDelta: 0.005,
+        }, 1000);
+      }
+  };
+
+  const handleStartRide = () => {
+      setRideStage('in_progress');
+      // Ajustar rota completa (origem -> destino)
+      if (currentRide?.pickupCoords && currentRide?.destinationCoords) {
+        mapRef.current?.fitToCoordinates([
+            currentRide.pickupCoords,
+            currentRide.destinationCoords
+        ], {
+            edgePadding: { top: 100, right: 50, bottom: 200, left: 50 },
+            animated: true,
+        });
+      }
+  };
+
+  const handleArrivedAtDestination = () => setRideStage('arrived_at_destination');
+  const handleFinishRide = () => {
+    setIsRatingModalVisible(true);
+  };
+
+  const handleSubmitRating = () => {
+    if (passengerRating === 0) {
+      Alert.alert('Avaliação', 'Por favor, dê uma nota ao passageiro.');
+      return;
+    }
+    // Simular envio da avaliação (mock)
+    Alert.alert('Avaliação Enviada', `Passageiro avaliado com ${passengerRating} estrelas. Comentário: ${ratingComment}`);
+    setIsRatingModalVisible(false);
+    setPassengerRating(0);
+    setRatingComment('');
+    // Resetar para disponível
+    setCurrentRide(null);
+    setRideStage(null);
+    setAvailabilityStatus('available');
+    // Voltar mapa para localização atual
+    if (driverLocation) {
+      mapRef.current?.animateToRegion({ ...driverLocation, latitudeDelta: 0.02, longitudeDelta: 0.02 }, 1000);
+    }
+  };
 
   // Drawer Control
   const openDrawer = () => {
@@ -368,6 +463,180 @@ export default function DriverHomeScreen() {
         <Text style={styles.actionButtonText}>Ficar Offline</Text>
       </TouchableOpacity>
     </View>
+  );
+
+  // Novos Painéis para Corrida
+  const renderGoingToPickupPanel = () => (
+    <View style={styles.bottomPanel}>
+      <Text style={styles.panelTitle}>Indo Buscar Passageiro</Text>
+      <Text style={styles.panelSubtitle}>{currentRide?.passengerName}</Text>
+      <View style={styles.rideInfoSection}>
+        <View style={styles.addressRow}>
+          <MapPin color={COLORS.primary} size={20} />
+          <View style={styles.addressContent}>
+            <Text style={styles.addressLabel}>Ponto de Embarque</Text>
+            <Text style={styles.addressText}>{currentRide?.pickupAddress}</Text>
+          </View>
+        </View>
+      </View>
+      <View style={styles.metricsContainer}>
+        <View style={styles.metricItem}>
+          <Navigation color={COLORS.darkGray} size={16} />
+          <View style={styles.metricContent}>
+            <Text style={styles.metricLabel}>Distância</Text>
+            <Text style={styles.metricValue}>{currentRide?.distanceToPickup.toFixed(1)} km</Text>
+          </View>
+        </View>
+        <View style={styles.metricItem}>
+          <Clock color={COLORS.darkGray} size={16} />
+          <View style={styles.metricContent}>
+            <Text style={styles.metricLabel}>Tempo Estimado</Text>
+            <Text style={styles.metricValue}>{currentRide?.estimatedDuration} min</Text>
+          </View>
+        </View>
+      </View>
+      <TouchableOpacity style={[styles.actionButton, styles.primaryButton]} onPress={handleArrivedAtPickup}>
+        <Check color={COLORS.white} size={22} />
+        <Text style={styles.actionButtonText}>Cheguei no Local</Text>
+      </TouchableOpacity>
+      <TouchableOpacity style={[styles.actionButton, styles.goUnavailableButton, { marginTop: 10 }]} onPress={handleToggleAvailability}>
+        <LogOut color={COLORS.white} size={20} />
+        <Text style={styles.actionButtonText}>Cancelar Corrida</Text>
+      </TouchableOpacity>
+    </View>
+  );
+
+  const renderArrivedAtPickupPanel = () => (
+    <View style={styles.bottomPanel}>
+      <Text style={styles.panelTitle}>Aguardando Passageiro</Text>
+      <Text style={styles.panelSubtitle}>{currentRide?.passengerName}</Text>
+      <View style={styles.rideInfoSection}>
+        <View style={styles.addressRow}>
+          <MapPin color={COLORS.primary} size={20} />
+          <View style={styles.addressContent}>
+            <Text style={styles.addressLabel}>Local Atual</Text>
+            <Text style={styles.addressText}>{currentRide?.pickupAddress}</Text>
+          </View>
+        </View>
+        <View style={styles.connectorLine} />
+        <View style={styles.addressRow}>
+          <Flag color={COLORS.warning} size={20} />
+          <View style={styles.addressContent}>
+            <Text style={styles.addressLabel}>Destino</Text>
+            <Text style={styles.addressText}>{currentRide?.destinationAddress}</Text>
+          </View>
+        </View>
+      </View>
+      <TouchableOpacity style={[styles.actionButton, styles.primaryButton]} onPress={handleStartRide}>
+        <ArrowRight color={COLORS.white} size={22} />
+        <Text style={styles.actionButtonText}>Iniciar Viagem</Text>
+      </TouchableOpacity>
+      <TouchableOpacity style={[styles.actionButton, styles.goUnavailableButton, { marginTop: 10 }]} onPress={handleToggleAvailability}>
+        <LogOut color={COLORS.white} size={20} />
+        <Text style={styles.actionButtonText}>Cancelar Corrida</Text>
+      </TouchableOpacity>
+    </View>
+  );
+
+  const renderInProgressPanel = () => (
+    <View style={styles.bottomPanel}>
+      <Text style={styles.panelTitle}>Em Rota</Text>
+      <Text style={styles.panelSubtitle}>Com {currentRide?.passengerName}</Text>
+      <View style={styles.rideInfoSection}>
+        <View style={styles.addressRow}>
+          <Flag color={COLORS.warning} size={20} />
+          <View style={styles.addressContent}>
+            <Text style={styles.addressLabel}>Destino</Text>
+            <Text style={styles.addressText}>{currentRide?.destinationAddress}</Text>
+          </View>
+        </View>
+      </View>
+      <View style={styles.metricsContainer}>
+        <View style={styles.metricItem}>
+          <ArrowRight color={COLORS.darkGray} size={16} />
+          <View style={styles.metricContent}>
+            <Text style={styles.metricLabel}>Distância Restante</Text>
+            <Text style={styles.metricValue}>{currentRide?.tripDistance.toFixed(1)} km</Text>
+          </View>
+        </View>
+        <View style={styles.metricItem}>
+          <Clock color={COLORS.darkGray} size={16} />
+          <View style={styles.metricContent}>
+            <Text style={styles.metricLabel}>Tempo Estimado</Text>
+            <Text style={styles.metricValue}>{currentRide?.estimatedDuration} min</Text>
+          </View>
+        </View>
+      </View>
+      <TouchableOpacity style={[styles.actionButton, styles.primaryButton]} onPress={handleArrivedAtDestination}>
+        <Flag color={COLORS.white} size={22} />
+        <Text style={styles.actionButtonText}>Cheguei no Destino</Text>
+      </TouchableOpacity>
+    </View>
+  );
+
+  const renderArrivedAtDestinationPanel = () => (
+    <View style={styles.bottomPanel}>
+      <Text style={styles.panelTitle}>Corrida Concluída</Text>
+      <Text style={styles.panelSubtitle}>Aguardando confirmação do passageiro.</Text>
+      <View style={styles.priceTagLarge}>
+        <DollarSign color={COLORS.success} size={24} />
+        <Text style={styles.priceTextLarge}>{calculateDynamicPrice(currentRide?.tripDistance || 0)}</Text>
+      </View>
+      <TouchableOpacity style={[styles.actionButton, styles.primaryButton]} onPress={handleFinishRide}>
+        <Check color={COLORS.white} size={22} />
+        <Text style={styles.actionButtonText}>Finalizar Corrida</Text>
+      </TouchableOpacity>
+    </View>
+  );
+
+  // --- MODAL DE AVALIAÇÃO CORRIGIDA ---
+  const renderRatingModal = () => (
+    <Modal visible={isRatingModalVisible} animationType="slide" transparent onRequestClose={() => setIsRatingModalVisible(false)}>
+      <View style={styles.modalOverlay}>
+        <View style={styles.filterModalContent}>
+          <View style={styles.filterModalHeader}>
+            <Text style={styles.filterModalTitle}>Avaliar Passageiro</Text>
+            <TouchableOpacity onPress={() => setIsRatingModalVisible(false)} style={styles.closeButton}>
+              <X color={COLORS.black} size={26} />
+            </TouchableOpacity>
+          </View>
+          <ScrollView contentContainerStyle={{ paddingBottom: 30, paddingHorizontal: 25, paddingTop: 20 }}>
+            <View style={styles.filterGroup}>
+              <Text style={styles.filterLabel}>Nota para {currentRide?.passengerName}</Text>
+              <View style={styles.ratingContainer}>
+                {[1, 2, 3, 4, 5].map((star) => (
+                  <TouchableOpacity key={star} onPress={() => setPassengerRating(star)}>
+                     {/* CORREÇÃO DO ERRO DA ESTRELA AQUI */}
+                    <Star 
+                        color={star <= passengerRating ? COLORS.warning : COLORS.mediumGray} 
+                        fill={star <= passengerRating ? COLORS.warning : 'transparent'}
+                        size={32} 
+                    />
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
+            <View style={styles.filterGroup}>
+              <Text style={styles.filterLabel}>Comentário (Opcional)</Text>
+              <TextInput
+                style={styles.filterInput}
+                value={ratingComment}
+                onChangeText={setRatingComment}
+                placeholder="Deixe um comentário sobre o passageiro..."
+                placeholderTextColor={COLORS.mediumGray}
+                multiline
+                numberOfLines={3}
+              />
+            </View>
+          </ScrollView>
+          <View style={styles.filterModalFooter}>
+            <TouchableOpacity style={styles.saveButton} onPress={handleSubmitRating}>
+              <Text style={styles.saveButtonText}>Enviar Avaliação</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </View>
+    </Modal>
   );
 
   // --- MODAL DE FILTROS REESTRUTURADA (CLEAN) ---
@@ -540,6 +809,23 @@ export default function DriverHomeScreen() {
     </Modal>
   );
 
+  // Status do Header baseado no estágio
+  const getHeaderStatus = () => {
+    if (availabilityStatus === 'unavailable') return 'Offline';
+    if (availabilityStatus === 'available') return 'Online';
+    if (rideStage === 'going_to_pickup') return 'Indo Buscar';
+    if (rideStage === 'arrived_at_pickup') return 'Aguardando Passageiro';
+    if (rideStage === 'in_progress') return 'Em Rota';
+    if (rideStage === 'arrived_at_destination') return 'Corrida Concluída';
+    return 'Em Corrida';
+  };
+
+  const headerStatusStyle = () => {
+    if (availabilityStatus === 'unavailable') return styles.headerBadgeOffline;
+    if (availabilityStatus === 'available') return styles.headerBadgeOnline;
+    return styles.headerBadgeOnRide;
+  };
+
   return (
     <SafeAreaView style={styles.safeArea}>
       <StatusBar barStyle="dark-content" backgroundColor={COLORS.white} />
@@ -549,13 +835,61 @@ export default function DriverHomeScreen() {
             <View style={styles.userMarker}><View style={styles.userMarkerCore} /></View>
           </Marker>
         )}
+        {currentRide && (
+          <>
+            <Marker coordinate={currentRide.pickupCoords} title="Ponto de Embarque">
+              <View style={styles.pickupMarker}><MapPin color={COLORS.success} size={24} /></View>
+            </Marker>
+            <Marker coordinate={currentRide.destinationCoords} title="Destino">
+              <View style={styles.destinationMarker}><Flag color={COLORS.warning} size={24} /></View>
+            </Marker>
+
+            {/* === ROTA IGUAL UBER (TRAÇADO) === */}
+            {/* Se estiver indo buscar: rota do motorista até o passageiro */}
+            {rideStage === 'going_to_pickup' && driverLocation && (
+                <MapViewDirections
+                    origin={driverLocation}
+                    destination={currentRide.pickupCoords}
+                    apikey={GOOGLE_MAPS_API_KEY_AQUI}
+                    strokeWidth={4}
+                    strokeColor={COLORS.primary}
+                    optimizeWaypoints={true}
+                    onError={(errorMessage) => {
+                        console.log('Erro na rota:', errorMessage);
+                    }}
+                />
+            )}
+            
+            {/* Se a corrida começou: rota do passageiro até o destino */}
+            {(rideStage === 'in_progress' || rideStage === 'arrived_at_destination') && (
+                 <MapViewDirections
+                    origin={currentRide.pickupCoords}
+                    destination={currentRide.destinationCoords}
+                    apikey={GOOGLE_MAPS_API_KEY_AQUI}
+                    strokeWidth={4}
+                    strokeColor={COLORS.primary}
+                    optimizeWaypoints={true}
+                 />
+            )}
+
+            {/* Fallback visual: Linha simples caso a API Key não esteja configurada ainda, para você ver algo na tela */}
+            {!GOOGLE_MAPS_API_KEY_AQUI && rideStage === 'in_progress' && (
+                 <Polyline 
+                    coordinates={[currentRide.pickupCoords, currentRide.destinationCoords]}
+                    strokeColor={COLORS.primary}
+                    strokeWidth={4}
+                    lineDashPattern={[1]}
+                 />
+            )}
+          </>
+        )}
       </MapView>
 
       <View style={styles.headerContainer}>
         <TouchableOpacity style={styles.iconButton} onPress={openDrawer}><Menu color={COLORS.black} size={28} /></TouchableOpacity>
         <View style={styles.headerCenter}>
-          <Text style={[styles.headerStatusText, availabilityStatus === 'available' ? styles.headerBadgeOnline : availabilityStatus === 'on_ride' ? styles.headerBadgeOnRide : styles.headerBadgeOffline]}>
-            {availabilityStatus === 'available' ? 'Online' : availabilityStatus === 'on_ride' ? 'Em Corrida' : 'Offline'}
+          <Text style={[styles.headerStatusText, headerStatusStyle()]}>
+            {getHeaderStatus()}
           </Text>
         </View>
         <View style={styles.headerRightColumn}>
@@ -567,10 +901,14 @@ export default function DriverHomeScreen() {
       {availabilityStatus === 'unavailable' && renderUnavailablePanel()}
       {availabilityStatus === 'available' && incomingRequests.length === 0 && renderAvailablePanel()}
       {availabilityStatus === 'available' && incomingRequests.length > 0 && renderRequestPanel()}
-      {availabilityStatus === 'on_ride' && <View style={styles.bottomPanel}><Text>Em corrida...</Text></View>}
+      {availabilityStatus === 'on_ride' && rideStage === 'going_to_pickup' && renderGoingToPickupPanel()}
+      {availabilityStatus === 'on_ride' && rideStage === 'arrived_at_pickup' && renderArrivedAtPickupPanel()}
+      {availabilityStatus === 'on_ride' && rideStage === 'in_progress' && renderInProgressPanel()}
+      {availabilityStatus === 'on_ride' && rideStage === 'arrived_at_destination' && renderArrivedAtDestinationPanel()}
 
       {renderSideMenu()}
       {renderFilterModal()}
+      {renderRatingModal()}
     </SafeAreaView>
   );
 }
@@ -622,6 +960,8 @@ const styles = StyleSheet.create({
   filterButton: { padding: 6, borderRadius: 20 },
   userMarker: { width: 28, height: 28, borderRadius: 14, backgroundColor: 'rgba(110, 23, 235, 0.2)', justifyContent: 'center', alignItems: 'center' },
   userMarkerCore: { width: 14, height: 14, borderRadius: 7, backgroundColor: COLORS.primary, borderWidth: 2, borderColor: COLORS.white },
+  pickupMarker: { width: 40, height: 40, borderRadius: 20, backgroundColor: COLORS.success + '20', justifyContent: 'center', alignItems: 'center' },
+  destinationMarker: { width: 40, height: 40, borderRadius: 20, backgroundColor: COLORS.warning + '20', justifyContent: 'center', alignItems: 'center' },
   
   // Painel Inferior
   bottomPanel: {
@@ -654,6 +994,7 @@ const styles = StyleSheet.create({
   actionButtonText: { color: COLORS.white, fontSize: 16, fontWeight: 'bold', marginLeft: 10 },
   goAvailableButton: { backgroundColor: COLORS.success, shadowColor: COLORS.success },
   goUnavailableButton: { backgroundColor: COLORS.danger, shadowColor: COLORS.danger },
+  primaryButton: { backgroundColor: COLORS.primary, shadowColor: COLORS.primary },
   offlineButtonInRequests: { marginTop: 15 },
   requestScrollContent: { paddingBottom: 10 },
   requestPanelHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 15, width: '100%' },
@@ -665,6 +1006,8 @@ const styles = StyleSheet.create({
   passengerName: { fontSize: 18, fontWeight: 'bold', color: COLORS.black },
   priceTag: { flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.lightGray, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 12, gap: 4 },
   priceText: { fontSize: 16, fontWeight: 'bold', color: COLORS.success },
+  priceTagLarge: { flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.success + '10', paddingHorizontal: 20, paddingVertical: 12, borderRadius: 20, gap: 8, marginBottom: 20, justifyContent: 'center', width: '100%' },
+  priceTextLarge: { fontSize: 24, fontWeight: 'bold', color: COLORS.success },
   divider: { height: 1, backgroundColor: COLORS.mediumGray, marginVertical: 15 },
   rideInfoSection: { marginBottom: 5 },
   addressRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
@@ -697,7 +1040,7 @@ const styles = StyleSheet.create({
   drawerLabel: { fontSize: 16, fontWeight: '500', color: COLORS.black },
   drawerFooter: { borderTopWidth: 1, borderTopColor: COLORS.lightGray, paddingVertical: 10 },
 
-  // Modal de Filtros (Clean Style)
+  // Modal de Filtros e Avaliação (Clean Style)
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0, 0, 0, 0.5)', justifyContent: 'flex-end' },
   filterModalContent: { backgroundColor: COLORS.white, borderTopLeftRadius: 30, borderTopRightRadius: 30, maxHeight: '95%', marginTop: 'auto', overflow: 'hidden', flex: 1 },
   filterModalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 25, paddingTop: 20, paddingBottom: 15, borderBottomWidth: 1, borderBottomColor: COLORS.lightGray },
@@ -716,9 +1059,10 @@ const styles = StyleSheet.create({
   saveButton: { backgroundColor: COLORS.primary, borderRadius: 12, paddingVertical: 16, alignItems: 'center', justifyContent: 'center' },
   saveButtonText: { color: COLORS.white, fontSize: 16, fontWeight: 'bold' },
   
-  // Estilos específicos para Inputs de Distância
+  // Estilos específicos para Inputs de Distância e Rating
   doubleInputRow: { flexDirection: 'row', gap: 15 },
   halfInputContainer: { flex: 1 },
   subLabel: { fontSize: 12, color: COLORS.darkGray, marginBottom: 6, fontWeight: '500' },
   filterInput: { backgroundColor: COLORS.lightGray, borderRadius: 12, paddingHorizontal: 16, paddingVertical: 14, fontSize: 16, color: COLORS.black },
+  ratingContainer: { flexDirection: 'row', justifyContent: 'center', gap: 10, marginTop: 10 },
 });

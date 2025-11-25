@@ -170,6 +170,9 @@ export default function PassengerHomeScreen() {
   const keyboardOffset = useRef(new Animated.Value(0)).current;
 
   const mapRef = useRef<MapView>(null);
+  const panelRef = useRef<View>(null);
+  const originInputRef = useRef<TextInput>(null);
+  const destinationInputRef = useRef<TextInput>(null);
 
   // Localização inicial
   useEffect(() => {
@@ -220,13 +223,31 @@ export default function PassengerHomeScreen() {
   // Teclado
   useEffect(() => {
     const show = Keyboard.addListener('keyboardDidShow', e => {
-      Animated.spring(keyboardOffset, { toValue: -e.endCoordinates.height + 100, useNativeDriver: true }).start();
+      const activeRef = activeField === 'origin' ? originInputRef : destinationInputRef;
+      if (!activeRef.current || !panelRef.current) return;
+
+      activeRef.current.measureLayout(
+        panelRef.current as any,
+        (_x, y, _width, height) => {
+          const keyboardHeight = e.endCoordinates.height;
+          const inputBottom = y + height + 20; // Margem extra
+          const availableSpace = screenHeight - keyboardHeight - 80; // Margem superior segura
+
+          const offsetNeeded = Math.max(0, inputBottom - availableSpace);
+          Animated.spring(keyboardOffset, {
+            toValue: -offsetNeeded,
+            friction: 8,
+            tension: 50,
+            useNativeDriver: true,
+          }).start();
+        }
+      );
     });
     const hide = Keyboard.addListener('keyboardDidHide', () => {
       Animated.spring(keyboardOffset, { toValue: 0, useNativeDriver: true }).start();
     });
     return () => { show.remove(); hide.remove(); };
-  }, []);
+  }, [activeField]);
 
   // Drawer
   const openDrawer = () => {
@@ -375,13 +396,14 @@ export default function PassengerHomeScreen() {
     </View>
   );
 
-  const selectingTranslateY = Animated.add(
-    panelAnimation.interpolate({ inputRange: [0, 1], outputRange: [panelHeight || 450, 0] }),
-    keyboardOffset
-  );
+  const selectingTranslateY = keyboardOffset;
 
   const renderSelectingPanel = () => (
-    <Animated.View style={[styles.bottomPanelSelecting, { transform: [{ translateY: selectingTranslateY }] }]} onLayout={e => setPanelHeight(e.nativeEvent.layout.height)}>
+    <Animated.View
+      ref={panelRef}
+      style={[styles.bottomPanelSelecting, { transform: [{ translateY: selectingTranslateY }] }]}
+      onLayout={e => setPanelHeight(e.nativeEvent.layout.height)}
+    >
       <ScrollView contentContainerStyle={styles.selectingScrollContent} keyboardShouldPersistTaps="handled">
         <View style={styles.selectionHeader}>
           <TouchableOpacity style={styles.backButton} onPress={() => { setViewState('idle'); resetAddressFields(); Keyboard.dismiss(); }}>
@@ -393,6 +415,7 @@ export default function PassengerHomeScreen() {
          <View style={styles.inputContainer}>
           <Text style={styles.inputLabel}>ORIGEM</Text>
           <TextInput
+            ref={originInputRef}
             style={styles.textInput}
             value={originAddress}
             onChangeText={(text) => { setOriginAddress(text); fetchAutocomplete(text, 'origin'); }}
@@ -416,6 +439,7 @@ export default function PassengerHomeScreen() {
         <View style={styles.inputContainer}>
           <Text style={styles.inputLabel}>DESTINO</Text>
           <TextInput
+            ref={destinationInputRef}
             style={styles.textInput}
             placeholder="Digite o destino..."
             value={destinationAddress}
@@ -744,7 +768,7 @@ const styles = StyleSheet.create({
   headerRightColumn: { flexDirection: 'column', alignItems: 'center', gap: 12 },
   filterButton: { padding: 6, borderRadius: 20 },
   bottomPanel: { position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: COLORS.white, borderTopLeftRadius: 30, borderTopRightRadius: 30, paddingHorizontal: 25, paddingTop: 25, paddingBottom: Platform.OS === 'ios' ? 40 : 25, elevation: 10, shadowColor: '#000', shadowOffset: { width: 0, height: -3 }, shadowOpacity: 0.1, shadowRadius: 5, zIndex: 30 },
-  bottomPanelSelecting: { position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: COLORS.white, borderTopLeftRadius: 30, borderTopRightRadius: 30, elevation: 10, shadowColor: '#000', shadowOffset: { width: 0, height: -3 }, shadowOpacity: 0.1, shadowRadius: 5, zIndex: 30 },
+  bottomPanelSelecting: { position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: COLORS.white, borderTopLeftRadius: 30, borderTopRightRadius: 30, elevation: 10, shadowColor: '#000', shadowOffset: { width: 0, height: -3 }, shadowOpacity: 0.1, shadowRadius: 5, zIndex: 30, maxHeight: screenHeight * 0.92 },
   selectingScrollContent: { paddingHorizontal: 25, paddingTop: 20, paddingBottom: Platform.OS === 'ios' ? 40 : 25 },
   panelTitle: { fontSize: 22, fontWeight: 'bold', color: COLORS.black, textAlign: 'center' },
   panelSubtitle: { fontSize: 16, color: COLORS.darkGray, marginBottom: 20, marginTop: 5, textAlign: 'center' },
